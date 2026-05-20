@@ -85,6 +85,26 @@ Ethereum Sepolia
 
 ---
 
+## 시스템 구조 다이어그램
+
+```mermaid
+flowchart LR
+    U[User]
+    B[Firefox Browser]
+    E[30ficate Extension]
+    W[Admin Web]
+    C[CertificateRegistry<br/>Ethereum Sepolia]
+    S[Certificate Search Source<br/>SSLMate / CT ecosystem]
+
+    U --> B
+    B --> E
+    E --> C
+    W --> C
+    W --> S
+```
+
+---
+
 ## 인증서 검증 흐름
 
 ```text
@@ -94,6 +114,23 @@ Ethereum Sepolia
 4. 온체인 approved certHash 조회
 5. 현재 certHash와 approved certHash 비교
 6. 결과 UI 표시
+```
+
+---
+
+## 인증서 검증 흐름 다이어그램
+
+```mermaid
+flowchart TD
+    A[User visits HTTPS site] --> B[Firefox performs default TLS validation]
+    B --> C[Extension reads leaf certificate fingerprint]
+    C --> D[Normalize domain and derive domainHash]
+    D --> E[Query on-chain certHash approval state]
+    E --> F{Match result}
+    F -->|Approved| G[Show Approved]
+    F -->|Unapproved| H[Show Unapproved]
+    F -->|Revoked| I[Show Revoked]
+    F -->|RPC / TLS observation failure| J[Show warning / unknown state]
 ```
 
 ---
@@ -131,40 +168,6 @@ Ethereum Sepolia
 - 사용자 단말 악성코드
 - Root CA 저장소 오염
 - TLS가 없는 HTTP 연결
-
----
-
-## 기술 스택
-
-### Blockchain
-
-- Solidity
-- Foundry
-- Forge test
-- Forge script
-- OpenZeppelin
-- Ethereum Sepolia
-
-### Frontend
-
-- React
-- TypeScript
-- Vite
-- TailwindCSS
-- wagmi
-- viem
-
-### Browser Extension
-
-- Firefox WebExtension API
-- TypeScript
-- web-ext
-- browser.webRequest.getSecurityInfo()
-
-### CT Integration
-
-- SSLMate Certificate Search API
-- CertStream
 
 ---
 
@@ -365,6 +368,26 @@ Ethereum Sepolia
 
 ---
 
+## System Architecture Diagram
+
+```mermaid
+flowchart LR
+    U[User]
+    B[Firefox Browser]
+    E[30ficate Extension]
+    W[Admin Web]
+    C[CertificateRegistry<br/>Ethereum Sepolia]
+    S[Certificate Search Source<br/>SSLMate / CT ecosystem]
+
+    U --> B
+    B --> E
+    E --> C
+    W --> C
+    W --> S
+```
+
+---
+
 ## Certificate Verification Flow
 
 ```text
@@ -374,6 +397,23 @@ Ethereum Sepolia
 4. The extension reads the approved certHash from the chain
 5. It compares the current certHash with the approved certHash
 6. The result is shown in the UI
+```
+
+---
+
+## Certificate Verification Flow Diagram
+
+```mermaid
+flowchart TD
+    A[User visits HTTPS site] --> B[Firefox performs default TLS validation]
+    B --> C[Extension reads leaf certificate fingerprint]
+    C --> D[Normalize domain and derive domainHash]
+    D --> E[Query on-chain certHash approval state]
+    E --> F{Match result}
+    F -->|Approved| G[Show Approved]
+    F -->|Unapproved| H[Show Unapproved]
+    F -->|Revoked| I[Show Revoked]
+    F -->|RPC / TLS observation failure| J[Show warning or unknown state]
 ```
 
 ---
@@ -411,40 +451,6 @@ The current implementation connects search results directly into the approval fl
 - Malware on the user device
 - Root CA store compromise
 - Plain HTTP without TLS
-
----
-
-## Tech Stack
-
-### Blockchain
-
-- Solidity
-- Foundry
-- Forge test
-- Forge script
-- OpenZeppelin
-- Ethereum Sepolia
-
-### Frontend
-
-- React
-- TypeScript
-- Vite
-- TailwindCSS
-- wagmi
-- viem
-
-### Browser Extension
-
-- Firefox WebExtension API
-- TypeScript
-- web-ext
-- browser.webRequest.getSecurityInfo()
-
-### CT Integration
-
-- SSLMate Certificate Search API
-- CertStream
 
 ---
 
