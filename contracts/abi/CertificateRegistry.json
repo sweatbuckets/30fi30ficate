@@ -1,0 +1,334 @@
+[
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "name": "admin",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "name": "registerDomain",
+    "inputs": [
+      {
+        "name": "domain",
+        "type": "string"
+      },
+      {
+        "name": "domainHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "ownerAddress",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "name": "approveCertificate",
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "certHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "issuer",
+        "type": "string"
+      },
+      {
+        "name": "subject",
+        "type": "string"
+      },
+      {
+        "name": "serialNumber",
+        "type": "string"
+      },
+      {
+        "name": "validFrom",
+        "type": "uint256"
+      },
+      {
+        "name": "validTo",
+        "type": "uint256"
+      },
+      {
+        "name": "fingerprintAlgorithm",
+        "type": "string"
+      },
+      {
+        "name": "memo",
+        "type": "string"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "name": "revokeCertificate",
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "certHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "memo",
+        "type": "string"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "name": "getCertificateStatus",
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "certHash",
+        "type": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "status",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "exists",
+            "type": "bool"
+          },
+          {
+            "name": "approved",
+            "type": "bool"
+          },
+          {
+            "name": "revoked",
+            "type": "bool"
+          },
+          {
+            "name": "approvedAt",
+            "type": "uint256"
+          },
+          {
+            "name": "revokedAt",
+            "type": "uint256"
+          },
+          {
+            "name": "issuer",
+            "type": "string"
+          },
+          {
+            "name": "subject",
+            "type": "string"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string"
+          },
+          {
+            "name": "validFrom",
+            "type": "uint256"
+          },
+          {
+            "name": "validTo",
+            "type": "uint256"
+          },
+          {
+            "name": "fingerprintAlgorithm",
+            "type": "string"
+          },
+          {
+            "name": "memo",
+            "type": "string"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "name": "getDomainOwner",
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "ownerAddress",
+        "type": "address"
+      },
+      {
+        "name": "exists",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "name": "getApprovedCertificates",
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32[]"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "DomainRegistered",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32",
+        "indexed": true
+      },
+      {
+        "name": "domain",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "ownerAddress",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "actor",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "registeredAt",
+        "type": "uint256",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "CertificateApproved",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32",
+        "indexed": true
+      },
+      {
+        "name": "certHash",
+        "type": "bytes32",
+        "indexed": true
+      },
+      {
+        "name": "actor",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "issuer",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "subject",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "serialNumber",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "validFrom",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "validTo",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "fingerprintAlgorithm",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "approvedAt",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "memo",
+        "type": "string",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "CertificateRevoked",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32",
+        "indexed": true
+      },
+      {
+        "name": "certHash",
+        "type": "bytes32",
+        "indexed": true
+      },
+      {
+        "name": "actor",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "revokedAt",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "memo",
+        "type": "string",
+        "indexed": false
+      }
+    ]
+  }
+]
+

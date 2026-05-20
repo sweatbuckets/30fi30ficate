@@ -1,0 +1,26 @@
+*
+!.gitignore
+!README.md
+!contracts/
+!contracts/**
+!admin-web/
+!admin-web/**
+!extension/
+!extension/**
+
+# Sensitive local env files
+contracts/.env
+admin-web/.env
+
+# Local dependency and build outputs
+admin-web/node_modules
+admin-web/dist
+admin-web/*.tsbuildinfo
+extension/node_modules
+extension/dist
+contracts/out
+contracts/cache
+contracts/broadcast
+
+# Optional local editor/system noise inside included folders
+**/.DS_Store

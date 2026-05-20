@@ -1,0 +1,11 @@
+{
+  "network": "ethereum-sepolia",
+  "chainId": 11155111,
+  "contractName": "CertificateRegistry",
+  "address": "<REPLACE_WITH_DEPLOYED_CONTRACT_ADDRESS>",
+  "deployedAtBlock": "<REPLACE_WITH_BLOCK_NUMBER>",
+  "deployTxHash": "<REPLACE_WITH_DEPLOY_TX_HASH>",
+  "abiPath": "contracts/abi/CertificateRegistry.json",
+  "artifactSourcePath": "contracts/out/CertificateRegistry.sol/CertificateRegistry.json",
+  "notes": "Copy resolved values into ethereum-sepolia.json after deployment."
+}

@@ -1,0 +1,19 @@
+{
+  "name": "30ficate-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "viem": "^2.22.23"
+  },
+  "devDependencies": {
+    "@types/firefox-webext-browser": "^120.0.4",
+    "esbuild": "^0.25.5",
+    "typescript": "^5.8.3"
+  }
+}

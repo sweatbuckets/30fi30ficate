@@ -1,0 +1,11 @@
+{
+  "network": "ethereum-sepolia",
+  "chainId": 11155111,
+  "contractName": "CertificateRegistry",
+  "address": "0x389a1E72a2da31eb452377D8AF84f87344EF4b6b",
+  "deployedAtBlock": 10874792,
+  "deployTxHash": "0x6a912d8570978bbad3c59a2f344dcd4724dc5193f6b80b4812b3ae712191752a",
+  "abiPath": "contracts/abi/CertificateRegistry.json",
+  "artifactSourcePath": "contracts/out/CertificateRegistry.sol/CertificateRegistry.json",
+  "notes": "Deployment recorded from Forge broadcast on Ethereum Sepolia."
+}

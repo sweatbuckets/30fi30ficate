@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>30ficate</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">30ficate</p>
+        <h1>온체인 TLS 검증 상태</h1>
+        <p class="subtitle">현재 탭의 HTTPS 인증서가 도메인 소유자에게 승인되었는지 확인합니다.</p>
+      </header>
+
+      <section id="status-card" class="status-card status-unknown">
+        <div class="status-row">
+          <span id="status-dot" class="status-dot"></span>
+          <div>
+            <p id="status-label" class="status-label">Unknown</p>
+            <p id="status-message" class="status-message">아직 검증 결과가 없습니다.</p>
+          </div>
+        </div>
+        <div id="warning-banner" class="warning-banner" hidden></div>
+        <button id="recheck-button" class="recheck-button" type="button" hidden>
+          인증서 다시 읽기
+        </button>
+      </section>
+
+      <section class="details">
+        <div class="detail">
+          <span class="label">Domain</span>
+          <span id="domain-value" class="value">-</span>
+        </div>
+        <div class="detail">
+          <span class="label">Serial Number</span>
+          <span id="serial-number-value" class="value mono">-</span>
+        </div>
+        <div class="detail">
+          <span class="label">Certificate Read Attempt</span>
+          <span id="checked-at-value" class="value">-</span>
+        </div>
+      </section>
+
+      <section class="details">
+        <div class="detail">
+          <span class="label">Certificate Chain</span>
+          <div id="chain-list" class="chain-list">
+            <p class="chain-empty">-</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
