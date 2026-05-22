@@ -90,9 +90,7 @@
 현재 필요한 대표 환경값은 다음입니다.
 
 - `VITE_WALLETCONNECT_PROJECT_ID`
-- `VITE_CT_PROXY_URL`
 
-`.env` 예시는 `.env.example`에 있습니다.
 
 ## 현재 한계
 
