@@ -8,11 +8,17 @@ import {
 } from "../shared/constants";
 import type {
   BrowserRequestContext,
+  CertificateStatusView,
   PopupRecheckRequest,
   PopupStateRequest,
   VerificationResult
 } from "../shared/types";
-import { deriveDomainHash, normalizeDomain } from "./domain";
+import {
+  areEquivalentDomains,
+  buildDomainCandidates,
+  deriveDomainHash,
+  normalizeDomain
+} from "./domain";
 import { extractLeafCertificateObservation } from "./fingerprint";
 import { getCertificateStatus, getRegistryConfigState } from "./registry-client";
 import { getSecurityInfo } from "./security-info";
@@ -128,28 +134,37 @@ function shouldPublishFailureResult(context: BrowserRequestContext): boolean {
 
 async function shouldVerifyRequestForTab(
   tabId: number,
-  requestUrl: string
+  requestUrl: string,
+  requestType?: string
 ): Promise<boolean> {
   if (tabId < 0) {
     return false;
   }
 
   try {
+    const candidateUrl = new URL(requestUrl);
+    if (candidateUrl.protocol !== "https:") {
+      return false;
+    }
+
+    if (requestType === "main_frame") {
+      return true;
+    }
+
     const tab = await browser.tabs.get(tabId);
     if (!tab.url?.startsWith("http")) {
       return false;
     }
 
     const tabUrl = new URL(tab.url);
-    const candidateUrl = new URL(requestUrl);
 
-    if (tabUrl.protocol !== "https:" || candidateUrl.protocol !== "https:") {
+    if (tabUrl.protocol !== "https:") {
       return false;
     }
 
     const tabHostname = normalizeDomain(tabUrl.hostname);
     const candidateHostname = normalizeDomain(candidateUrl.hostname);
-    return tabHostname === candidateHostname;
+    return areEquivalentDomains(tabHostname, candidateHostname);
   } catch (error) {
     console.error("[30ficate] shouldVerifyRequestForTab:error", {
       tabId,
@@ -169,10 +184,7 @@ async function verifyRequest(context: BrowserRequestContext): Promise<void> {
   }
 
   const { rpcConfigured } = getRegistryConfigState();
-  const domainHash = deriveDomainHash(
-    ETHEREUM_SEPOLIA_CHAIN_ID,
-    context.normalizedDomain
-  );
+  const domainCandidates = buildDomainCandidates(context.normalizedDomain);
 
   let certificate;
 
@@ -200,16 +212,37 @@ async function verifyRequest(context: BrowserRequestContext): Promise<void> {
     });
     if (shouldPublishFailureResult(context)) {
       await publishResult(
-        buildTlsObservationFailureResult(context, domainHash, rpcConfigured)
+        buildTlsObservationFailureResult(context, domainCandidates[0], undefined, rpcConfigured)
       );
     }
     return;
   }
 
-  let onChainStatus = null;
+  let onChainStatus: CertificateStatusView | null = null;
+  let matchedDomain: string | undefined;
+  let matchedDomainHash: `0x${string}` | undefined;
 
   try {
-    onChainStatus = await getCertificateStatus(domainHash, certificate.certHash);
+    for (const domainCandidate of domainCandidates) {
+      const domainHash = deriveDomainHash(
+        ETHEREUM_SEPOLIA_CHAIN_ID,
+        domainCandidate
+      );
+      const status = await getCertificateStatus(domainHash, certificate.certHash);
+
+      if (status && (status.exists || status.approved || status.revoked)) {
+        onChainStatus = status;
+        matchedDomain = domainCandidate;
+        matchedDomainHash = domainHash;
+        break;
+      }
+
+      if (!onChainStatus) {
+        onChainStatus = status;
+        matchedDomain = domainCandidate;
+        matchedDomainHash = domainHash;
+      }
+    }
   } catch (error) {
     console.error("[30ficate] verifyRequest:rpcError", {
       tabId: context.tabId,
@@ -219,7 +252,13 @@ async function verifyRequest(context: BrowserRequestContext): Promise<void> {
     });
     if (shouldPublishFailureResult(context)) {
       await publishResult(
-        buildRpcFailureResult(context, certificate, domainHash, rpcConfigured)
+        buildRpcFailureResult(
+          context,
+          certificate,
+          matchedDomain ?? domainCandidates[0],
+          matchedDomainHash,
+          rpcConfigured
+        )
       );
     }
     return;
@@ -233,7 +272,13 @@ async function verifyRequest(context: BrowserRequestContext): Promise<void> {
     });
     if (shouldPublishFailureResult(context)) {
       await publishResult(
-        buildRpcFailureResult(context, certificate, domainHash, rpcConfigured)
+        buildRpcFailureResult(
+          context,
+          certificate,
+          matchedDomain ?? domainCandidates[0],
+          matchedDomainHash,
+          rpcConfigured
+        )
       );
     }
     return;
@@ -251,7 +296,8 @@ async function verifyRequest(context: BrowserRequestContext): Promise<void> {
     buildVerificationResult(
       context,
       certificate,
-      domainHash,
+      matchedDomain ?? domainCandidates[0],
+      matchedDomainHash as `0x${string}`,
       onChainStatus,
       rpcConfigured
     )
@@ -263,7 +309,11 @@ browser.webRequest.onHeadersReceived.addListener(
     if (details.tabId < 0) return;
 
     void (async () => {
-      const shouldVerify = await shouldVerifyRequestForTab(details.tabId, details.url);
+      const shouldVerify = await shouldVerifyRequestForTab(
+        details.tabId,
+        details.url,
+        details.type
+      );
       console.debug("[30ficate] onHeadersReceived", {
         requestId: details.requestId,
         tabId: details.tabId,

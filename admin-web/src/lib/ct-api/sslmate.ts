@@ -5,7 +5,11 @@ const proxyBaseUrl = import.meta.env.VITE_CT_PROXY_URL ?? "/api/certspotter";
 interface QuerySslmateOptions {
   includeSubdomains?: boolean;
   matchWildcards?: boolean;
+  certHash?: string;
+  maxPages?: number;
 }
+
+const DEFAULT_MAX_SSLMATE_PAGES = 2;
 
 interface QuerySslmatePageOptions extends QuerySslmateOptions {
   after?: string;
@@ -18,6 +22,12 @@ function buildSslmateUrl(baseUrl: string = proxyBaseUrl): URL {
 }
 
 async function parseSslmateJsonResponse(response: Response): Promise<SSLMateIssuanceEntry[]> {
+  if (response.status === 429) {
+    const retryAfter = response.headers.get("retry-after");
+    const retrySuffix = retryAfter ? ` Retry-After: ${retryAfter}s.` : "";
+    throw new Error(`SSLMate rate limit reached.${retrySuffix}`);
+  }
+
   if (!response.ok) {
     throw new Error(`SSLMate query failed with status ${response.status}.`);
   }
@@ -70,7 +80,61 @@ export async function querySslmate(
   domain: string,
   options: QuerySslmateOptions = {}
 ): Promise<SSLMateIssuanceEntry[]> {
-  return querySslmatePage(domain, options);
+  const collectedEntries: SSLMateIssuanceEntry[] = [];
+  const seenIds = new Set<string>();
+  const normalizedCertHash = options.certHash?.trim().toLowerCase();
+  const maxPages = Math.max(1, options.maxPages ?? DEFAULT_MAX_SSLMATE_PAGES);
+  let after: string | undefined;
+  let pageCount = 0;
+
+  while (true) {
+    let entries: SSLMateIssuanceEntry[];
+    try {
+      entries = await querySslmatePage(domain, {
+        ...options,
+        after
+      });
+    } catch (error) {
+      if (collectedEntries.length > 0) {
+        return collectedEntries;
+      }
+
+      throw error;
+    }
+
+    if (entries.length === 0) {
+      break;
+    }
+
+    pageCount += 1;
+
+    for (const entry of entries) {
+      if (seenIds.has(entry.id)) {
+        continue;
+      }
+
+      seenIds.add(entry.id);
+      collectedEntries.push(entry);
+    }
+
+    if (
+      normalizedCertHash &&
+      entries.some(
+        (entry) => entry.cert_sha256 && `0x${entry.cert_sha256.toLowerCase()}` === normalizedCertHash
+      )
+    ) {
+      break;
+    }
+
+    const nextAfter = entries[entries.length - 1]?.id;
+    if (!nextAfter || nextAfter === after || pageCount >= maxPages) {
+      break;
+    }
+
+    after = nextAfter;
+  }
+
+  return collectedEntries;
 }
 
 export async function fetchSslmateCertificateDer(

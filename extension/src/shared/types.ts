@@ -63,6 +63,7 @@ export interface VerificationResult {
   url: string;
   hostname: string;
   normalizedDomain: string;
+  matchedDomain?: string;
   domainHash?: `0x${string}`;
   certHash?: `0x${string}`;
   status: VerificationStatus;

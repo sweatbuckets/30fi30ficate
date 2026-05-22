@@ -17,11 +17,12 @@ function chooseSubject(entry: CrtShRawEntry, identities: string[]): string {
 }
 
 function determineReviewState(
-  targetDomain: string,
+  targetDomain: string | string[],
   identities: string[]
 ): { wildcard: boolean; exactMatch: boolean; reviewState: CrtSearchReviewState } {
   const wildcard = identities.some((identity) => identity.startsWith("*."));
-  const exactMatch = identities.includes(targetDomain);
+  const targetDomains = Array.isArray(targetDomain) ? targetDomain : [targetDomain];
+  const exactMatch = targetDomains.some((domain) => identities.includes(domain));
 
   if (wildcard || !exactMatch) {
     return {
@@ -83,6 +84,45 @@ export function normalizeSslmateEntries(
     return {
       id: `${normalizedDomain}:${entry.id}:${index}`,
       domain: normalizedDomain,
+      certHash: entry.cert_sha256 ? `0x${entry.cert_sha256}` : "",
+      issuer:
+        entry.issuer?.friendly_name?.trim() ||
+        entry.issuer?.name?.trim() ||
+        "Unknown issuer",
+      subject: identities[0] || "Unknown subject",
+      serialNumber: "",
+      validFrom: entry.not_before ?? "",
+      validTo: entry.not_after ?? "",
+      revoked: entry.revoked ?? null,
+      source: "sslmate",
+      identities,
+      externalId: entry.id,
+      externalLabel: `SSLMate issuance ${entry.id}`,
+      wildcard: review.wildcard,
+      exactMatch: review.exactMatch,
+      reviewState: review.reviewState
+    };
+  });
+}
+
+export function normalizeGroupedSslmateEntries(
+  domains: string[],
+  entries: SSLMateIssuanceEntry[]
+): CrtSearchResultItem[] {
+  const normalizedDomains = domains
+    .map((domain) => domain.trim().toLowerCase())
+    .filter(Boolean);
+  const primaryDomain = normalizedDomains[0] ?? "";
+
+  return entries.map((entry, index) => {
+    const identities = (entry.dns_names ?? [])
+      .map((dnsName) => dnsName.trim().toLowerCase())
+      .filter(Boolean);
+    const review = determineReviewState(normalizedDomains, identities);
+
+    return {
+      id: `${primaryDomain}:${entry.id}:${index}`,
+      domain: primaryDomain,
       certHash: entry.cert_sha256 ? `0x${entry.cert_sha256}` : "",
       issuer:
         entry.issuer?.friendly_name?.trim() ||
