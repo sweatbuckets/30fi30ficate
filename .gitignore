@@ -18,6 +18,9 @@ admin-web/dist
 admin-web/*.tsbuildinfo
 extension/node_modules
 extension/dist
+.pnpm-store
+**/.pnpm-store
+pnpm-store
 contracts/out
 contracts/cache
 contracts/broadcast
