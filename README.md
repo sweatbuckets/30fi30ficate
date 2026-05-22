@@ -1,6 +1,23 @@
-# 30ficate
+<p align="center">
+  <img src="./extension/assets/icons/30ficate_icon.png" alt="30ficate logo" width="180" />
+</p>
 
-Firefox 기반 온체인 TLS 인증서 검증 보조 시스템
+<h1 align="center">30ficate</h1>
+
+<p align="center">
+  Firefox 기반 온체인 TLS 인증서 검증 보조 시스템
+</p>
+
+<p align="center">
+  브라우저가 실제로 받은 TLS 인증서를 기준으로, 도메인 owner의 온체인 승인 여부를 추가 검증합니다.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Browser-Firefox-E66000?style=flat-square&logo=firefoxbrowser&logoColor=white" alt="Firefox" />
+  <img src="https://img.shields.io/badge/Network-Ethereum%20Sepolia-627EEA?style=flat-square&logo=ethereum&logoColor=white" alt="Ethereum Sepolia" />
+  <img src="https://img.shields.io/badge/App-WebExtension-0A84FF?style=flat-square&logo=mozilla&logoColor=white" alt="WebExtension" />
+  <img src="https://img.shields.io/badge/Verification-On--chain%20TLS-1A8D72?style=flat-square" alt="On-chain TLS Verification" />
+</p>
 
 ---
 
