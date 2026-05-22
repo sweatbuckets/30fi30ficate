@@ -3,9 +3,13 @@ import { createPortal } from "react-dom";
 import { SearchCheck } from "lucide-react";
 import { useAccount, useWriteContract } from "wagmi";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
-import { deriveDomainHash, normalizeDomain } from "../../lib/domain/hash";
+import {
+  buildDomainCandidates,
+  deriveDomainHash,
+  normalizeDomain
+} from "../../lib/domain/hash";
 import { querySslmate } from "../../lib/ct-api/sslmate";
-import { normalizeSslmateEntries } from "../../lib/ct-api/normalize";
+import { normalizeGroupedSslmateEntries } from "../../lib/ct-api/normalize";
 import type { ApprovalFormState, CrtSearchResultItem } from "../../types/admin";
 
 const initialState: ApprovalFormState = {
@@ -22,6 +26,15 @@ const initialState: ApprovalFormState = {
 const resultsPerPage = 20;
 
 type SearchResultTab = "active" | "upcoming";
+
+function normalizeCertHashInput(value: string): string {
+  const compact = value.trim().toLowerCase();
+  if (!compact) {
+    return "";
+  }
+
+  return compact.startsWith("0x") ? compact : `0x${compact}`;
+}
 
 function isSearchResultUsable(item: CrtSearchResultItem): boolean {
   const now = Date.now();
@@ -66,6 +79,32 @@ function isUpcomingResult(item: CrtSearchResultItem): boolean {
   return validFrom > now;
 }
 
+function mergeSearchResults(items: CrtSearchResultItem[]): CrtSearchResultItem[] {
+  const merged = new Map<string, CrtSearchResultItem>();
+
+  for (const item of items) {
+    const key = `${item.externalId}:${item.certHash}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, item);
+      continue;
+    }
+
+    merged.set(key, {
+      ...existing,
+      identities: Array.from(new Set([...existing.identities, ...item.identities])),
+      wildcard: existing.wildcard || item.wildcard,
+      exactMatch: existing.exactMatch || item.exactMatch,
+      reviewState:
+        existing.reviewState === "Pending" || item.reviewState === "Pending"
+          ? "Pending"
+          : "Needs Review"
+    });
+  }
+
+  return Array.from(merged.values());
+}
+
 export function CertificateApprovalForm() {
   const { address } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
@@ -75,6 +114,8 @@ export function CertificateApprovalForm() {
   const [includeSubdomains, setIncludeSubdomains] = useState(false);
   const [matchWildcards, setMatchWildcards] = useState(false);
   const [searchResults, setSearchResults] = useState<CrtSearchResultItem[]>([]);
+  const [searchCertHash, setSearchCertHash] = useState("");
+  const [isAdvancedSearchOpen, setIsAdvancedSearchOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -83,12 +124,20 @@ export function CertificateApprovalForm() {
 
   const normalizedDomain = useMemo(() => normalizeDomain(state.domain), [state.domain]);
   const normalizedSearchDomain = useMemo(() => normalizeDomain(searchDomain), [searchDomain]);
+  const searchDomainCandidates = useMemo(
+    () => buildDomainCandidates(normalizedSearchDomain),
+    [normalizedSearchDomain]
+  );
   const domainHash = useMemo(
     () =>
       normalizedDomain
         ? deriveDomainHash(registryChainId, normalizedDomain)
         : ("" as `0x${string}` | ""),
     [normalizedDomain]
+  );
+  const normalizedSearchCertHash = useMemo(
+    () => normalizeCertHashInput(searchCertHash),
+    [searchCertHash]
   );
   const isApprovalReady = Boolean(
     state.domain ||
@@ -108,7 +157,26 @@ export function CertificateApprovalForm() {
     () => searchResults.filter(isUpcomingResult),
     [searchResults]
   );
-  const visibleResults = activeResultsTab === "active" ? activeResults : upcomingResults;
+  const filteredActiveResults = useMemo(
+    () =>
+      activeResults.filter((item) =>
+        normalizedSearchCertHash
+          ? item.certHash.toLowerCase() === normalizedSearchCertHash
+          : true
+      ),
+    [activeResults, normalizedSearchCertHash]
+  );
+  const filteredUpcomingResults = useMemo(
+    () =>
+      upcomingResults.filter((item) =>
+        normalizedSearchCertHash
+          ? item.certHash.toLowerCase() === normalizedSearchCertHash
+          : true
+      ),
+    [normalizedSearchCertHash, upcomingResults]
+  );
+  const visibleResults =
+    activeResultsTab === "active" ? filteredActiveResults : filteredUpcomingResults;
   const totalResultPages = useMemo(
     () => Math.max(1, Math.ceil(visibleResults.length / resultsPerPage)),
     [visibleResults.length]
@@ -146,12 +214,21 @@ export function CertificateApprovalForm() {
     setSearchError(null);
 
     try {
-      const entries = await querySslmate(normalizedSearchDomain, {
-        includeSubdomains,
-        matchWildcards
-      });
-      const normalizedResults = normalizeSslmateEntries(normalizedSearchDomain, entries).filter(
-        isSearchResultUsable
+      const groupedEntries = await Promise.all(
+        searchDomainCandidates.map((domainCandidate) =>
+          querySslmate(domainCandidate, {
+            includeSubdomains,
+            matchWildcards,
+            certHash: normalizedSearchCertHash || undefined
+          })
+        )
+      );
+      const normalizedResults = mergeSearchResults(
+        groupedEntries
+          .flatMap((entries) =>
+            normalizeGroupedSslmateEntries(searchDomainCandidates, entries)
+          )
+          .filter(isSearchResultUsable)
       );
       setSearchResults(normalizedResults);
       setActiveResultsTab("active");
@@ -319,6 +396,50 @@ export function CertificateApprovalForm() {
                 </button>
               </div>
 
+              <div className="advanced-search-block">
+                <button
+                  className={`advanced-search-toggle ${isAdvancedSearchOpen ? "advanced-search-toggle-open" : ""}`}
+                  onClick={() => setIsAdvancedSearchOpen((open) => !open)}
+                  type="button"
+                >
+                  <span className="advanced-search-toggle-icon">+</span>
+                  <span>고급 옵션</span>
+                </button>
+
+                {isAdvancedSearchOpen && (
+                  <div className="advanced-search-panel">
+                    <div className="field">
+                      <label htmlFor="certificate-search-cert-hash">certHash Filter</label>
+                      <input
+                        id="certificate-search-cert-hash"
+                        placeholder="0x... extension에서 본 certHash"
+                        value={searchCertHash}
+                        onChange={(event) => setSearchCertHash(event.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSearchCertHash(state.certHash)}
+                        type="button"
+                      >
+                        폼의 certHash 사용
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSearchCertHash("")}
+                        type="button"
+                      >
+                        certHash 필터 초기화
+                      </button>
+                    </div>
+                    <p className="m-0 text-sm text-slate-500">
+                      extension에서 본 certHash를 넣으면 SSLMate 결과 중 정확히 일치하는 인증서만 남깁니다.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700">
                   <input
@@ -352,6 +473,9 @@ export function CertificateApprovalForm() {
                       {isSearching ? "재시도 중..." : "검색 재시도"}
                     </button>
                   </div>
+                  <p className="mt-3 mb-0 text-xs text-red-700/80">
+                    certHash 필터를 함께 넣으면 페이지 순회를 더 빨리 멈출 수 있어서 rate limit 가능성을 줄일 수 있습니다.
+                  </p>
                 </div>
               )}
 
@@ -359,7 +483,7 @@ export function CertificateApprovalForm() {
                 <span>
                   {searchResults.length === 0
                     ? "검색 결과가 없습니다."
-                    : `총 ${searchResults.length}개 결과, ${resultsPage} / ${totalResultPages} 페이지`}
+                    : `총 ${searchResults.length}개 수집, 현재 필터 ${visibleResults.length}개, ${resultsPage} / ${totalResultPages} 페이지`}
                 </span>
                 <div className="modal-pagination">
                   <button
@@ -382,7 +506,7 @@ export function CertificateApprovalForm() {
               </div>
 
               {normalizedSearchDomain && (
-                <div className="search-domain-heading">{normalizedSearchDomain}</div>
+                <div className="search-domain-heading">{searchDomainCandidates.join(" / ")}</div>
               )}
 
               <div className="menu-bar menu-bar-filters">
@@ -394,7 +518,7 @@ export function CertificateApprovalForm() {
                   }}
                   type="button"
                 >
-                  지금 사용 가능 {activeResults.length}
+                  지금 사용 가능 {filteredActiveResults.length}
                 </button>
                 <button
                   className={`menu-tab menu-tab-filter ${activeResultsTab === "upcoming" ? "menu-tab-active" : ""}`}
@@ -404,7 +528,7 @@ export function CertificateApprovalForm() {
                   }}
                   type="button"
                 >
-                  곧 사용 가능 {upcomingResults.length}
+                  곧 사용 가능 {filteredUpcomingResults.length}
                 </button>
               </div>
 
@@ -413,6 +537,8 @@ export function CertificateApprovalForm() {
                   <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
                     {searchResults.length === 0
                       ? "domain을 입력하고 `Search SSLMate`를 실행하세요."
+                      : normalizedSearchCertHash
+                        ? "입력한 certHash와 정확히 일치하는 검색 결과가 없습니다."
                       : activeResultsTab === "active"
                         ? "지금 사용 가능한 검색 결과가 없습니다."
                         : "곧 사용 가능해질 검색 결과가 없습니다."}
@@ -422,6 +548,11 @@ export function CertificateApprovalForm() {
                     <SearchResultCard
                       key={item.id}
                       item={item}
+                      highlighted={
+                        normalizedSearchCertHash
+                          ? item.certHash.toLowerCase() === normalizedSearchCertHash
+                          : false
+                      }
                       onSelect={selectSearchResult}
                     />
                   ))
@@ -441,13 +572,17 @@ export function CertificateApprovalForm() {
 
 function SearchResultCard(props: {
   item: CrtSearchResultItem;
+  highlighted?: boolean;
   onSelect?: (item: CrtSearchResultItem) => void;
 }) {
   const chipClassName =
     props.item.reviewState === "Rejected" ? "status-revoked" : "status-pending";
+  const cardClassName = props.highlighted
+    ? "search-result-card flex h-full flex-col rounded-2xl border-2 border-emerald-400 bg-emerald-50/60 p-5 shadow-[0_0_0_1px_rgba(52,211,153,0.15)]"
+    : "search-result-card flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white/75 p-5";
 
   return (
-    <article className="search-result-card flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white/75 p-5">
+    <article className={cardClassName}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="issuer-pill">{props.item.issuer}</span>
@@ -455,6 +590,12 @@ function SearchResultCard(props: {
         </div>
         <span className={`status-chip ${chipClassName}`}>{props.item.reviewState}</span>
       </div>
+
+      {props.highlighted && (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-100/80 p-3 text-sm text-emerald-900">
+          extension에서 입력한 certHash와 일치합니다.
+        </div>
+      )}
 
       <div className="mt-4">
         <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Identities</p>

@@ -15,6 +15,8 @@ const statusCard = document.getElementById("status-card") as HTMLElement;
 const statusLabel = document.getElementById("status-label") as HTMLElement;
 const statusMessage = document.getElementById("status-message") as HTMLElement;
 const domainValue = document.getElementById("domain-value") as HTMLElement;
+const domainHashValue = document.getElementById("domain-hash-value") as HTMLElement;
+const certHashValue = document.getElementById("cert-hash-value") as HTMLElement;
 const serialNumberValue = document.getElementById("serial-number-value") as HTMLElement;
 const checkedAtValue = document.getElementById("checked-at-value") as HTMLElement;
 const chainList = document.getElementById("chain-list") as HTMLElement;
@@ -165,6 +167,8 @@ function renderState(result: VerificationResult | null): void {
     statusMessage.textContent =
       "아직 이 탭의 검증 결과가 없습니다. 인증서 다시 읽기를 실행해 주세요.";
     domainValue.textContent = "-";
+    domainHashValue.textContent = "-";
+    certHashValue.textContent = "-";
     serialNumberValue.textContent = "-";
     checkedAtValue.textContent = "-";
     renderChain(undefined);
@@ -176,7 +180,10 @@ function renderState(result: VerificationResult | null): void {
   statusCard.className = statusClassName(result.status);
   statusLabel.textContent = result.status;
   statusMessage.textContent = result.message;
-  domainValue.textContent = result.normalizedDomain || result.hostname;
+  domainValue.textContent =
+    result.matchedDomain ?? result.normalizedDomain ?? result.hostname;
+  domainHashValue.textContent = result.domainHash ?? "-";
+  certHashValue.textContent = result.certHash ?? "-";
   serialNumberValue.textContent = result.serialNumber ?? "-";
   checkedAtValue.textContent = new Date(result.checkedAt).toLocaleString();
   renderChain(result.certificateChain);

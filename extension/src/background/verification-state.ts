@@ -25,6 +25,7 @@ export function buildHttpResult(context: BrowserRequestContext): VerificationRes
 export function buildRpcFailureResult(
   context: BrowserRequestContext,
   certificate: CertificateObservation | null,
+  matchedDomain: string | undefined,
   domainHash: `0x${string}` | undefined,
   rpcConfigured: boolean
 ): VerificationResult {
@@ -33,6 +34,7 @@ export function buildRpcFailureResult(
     url: context.url,
     hostname: context.hostname,
     normalizedDomain: context.normalizedDomain,
+    matchedDomain,
     domainHash,
     certHash: certificate?.certHash,
     issuer: certificate?.issuer,
@@ -52,6 +54,7 @@ export function buildRpcFailureResult(
 
 export function buildTlsObservationFailureResult(
   context: BrowserRequestContext,
+  matchedDomain: string | undefined,
   domainHash: `0x${string}` | undefined,
   rpcConfigured: boolean
 ): VerificationResult {
@@ -60,6 +63,7 @@ export function buildTlsObservationFailureResult(
     url: context.url,
     hostname: context.hostname,
     normalizedDomain: context.normalizedDomain,
+    matchedDomain,
     domainHash,
     status: "TLSObservationFailure",
     message: "현재 요청에서 HTTPS 인증서 정보를 읽을 수 없습니다.",
@@ -75,6 +79,7 @@ export function buildTlsObservationFailureResult(
 export function buildVerificationResult(
   context: BrowserRequestContext,
   certificate: CertificateObservation,
+  matchedDomain: string,
   domainHash: `0x${string}`,
   onChainStatus: CertificateStatusView,
   rpcConfigured: boolean
@@ -84,6 +89,7 @@ export function buildVerificationResult(
     url: context.url,
     hostname: context.hostname,
     normalizedDomain: context.normalizedDomain,
+    matchedDomain,
     domainHash,
     certHash: certificate.certHash,
     checkedAt: Date.now(),
