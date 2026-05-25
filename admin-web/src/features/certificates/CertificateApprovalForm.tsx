@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { SearchCheck } from "lucide-react";
+import { RefreshCw, Search, SearchCheck, X } from "lucide-react";
 import { useAccount, useWriteContract } from "wagmi";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
 import {
@@ -185,6 +185,12 @@ export function CertificateApprovalForm() {
     const startIndex = (resultsPage - 1) * resultsPerPage;
     return visibleResults.slice(startIndex, startIndex + resultsPerPage);
   }, [resultsPage, visibleResults]);
+  const selectionNeedsReview = Boolean(
+    selectedSearchResult &&
+      (selectedSearchResult.wildcard ||
+        selectedSearchResult.reviewState === "Needs Review" ||
+        !selectedSearchResult.exactMatch)
+  );
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -260,99 +266,191 @@ export function CertificateApprovalForm() {
     setIsSearchModalOpen(false);
   }
 
+  function resetSelectedCertificate() {
+    setState(initialState);
+    setSelectedSearchResult(null);
+  }
+
   return (
-    <section className="glass p-6">
-      <div className="mb-5">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-          Certificate Approval
-        </p>
-        <div className="module-title-row">
-          <span className="module-icon-badge">
-            <SearchCheck size={18} strokeWidth={2.2} />
-          </span>
-          <h2 className="m-0 text-xl font-semibold">Certificate Approval</h2>
-        </div>
-        <p className="mt-3 text-sm text-slate-500">
-          SSLMate 검색 결과를 보고 승인할 인증서를 선택하거나, 필요하면 메타데이터와 certHash를 직접 입력해 온체인 approve 흐름으로 보냅니다.
+    <section className="approval-screen">
+      <div className="approval-screen-header">
+        <h1 className="approval-screen-title">인증서 승인</h1>
+        <p className="approval-screen-subtitle">
+          승인할 인증서를 검색하고 선택한 뒤 온체인 승인할 수 있습니다.
         </p>
       </div>
 
-      <div className="grid gap-4">
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-white/70 p-4 text-sm text-slate-600">
-          <span>
-            SSLMate에서 인증서를 검색하고 결과를 선택하면 approval form이 활성화됩니다.
-          </span>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setIsSearchModalOpen(true)}
-            type="button"
-          >
-            인증서 검색
-          </button>
-        </div>
-
+      <div className="approval-main-card">
         {!isApprovalReady ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-            아직 선택된 인증서가 없습니다. `인증서 검색`에서 결과를 고른 뒤 approval form을 진행하세요.
-          </div>
-        ) : (
-          <form className="grid gap-4" onSubmit={onSubmit}>
-            {selectedSearchResult && (
-              <div className="grid gap-3">
-                <p className="mb-0 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  선택한 인증서
-                </p>
-                <SearchResultCard item={selectedSearchResult} />
-              </div>
-            )}
+          <div className="approval-empty-layout">
+            <div className="approval-empty-header">
+              <h2 className="approval-section-title">승인할 인증서 선택</h2>
+              <p className="approval-section-copy">
+                SSLMate 인증서 검색을 통해 승인 대상 인증서를 먼저 선택하세요.
+              </p>
+            </div>
 
-            <div className="flex items-center justify-end gap-4">
+            <div className="approval-empty-card">
+              <div className="approval-empty-state">
+                <div className="approval-empty-icon">
+                  <Search size={20} strokeWidth={2.2} />
+                </div>
+                <div className="approval-empty-copy">
+                  <p className="approval-empty-title">선택된 인증서가 없습니다.</p>
+                  <p className="approval-empty-description">
+                    검색 결과에서 인증서를 선택하면 검토 상태와 승인 요청 정보가 표시됩니다.
+                  </p>
+                </div>
+              </div>
+
               <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  setState(initialState);
-                  setSelectedSearchResult(null);
-                }}
+                className="approval-search-button"
+                onClick={() => setIsSearchModalOpen(true)}
                 type="button"
               >
-                선택 초기화
+                <Search size={15} strokeWidth={2.2} />
+                인증서 검색
               </button>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Domain</p>
-                <p className="m-0 text-sm break-all font-medium text-slate-900">{state.domain || "-"}</p>
+            <div className="approval-request-info">
+              <div className="approval-request-info-copy">
+                <h3 className="approval-request-title">승인 요청 정보</h3>
+                <p className="approval-request-description">
+                  인증서를 선택하면 아래 정보가 자동으로 채워집니다.
+                </p>
               </div>
 
-              <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">domainHash</p>
-                <p className="mono m-0 text-sm break-all text-slate-900">{domainHash || "-"}</p>
+              <div className="approval-placeholder-grid">
+                <PlaceholderField label="Domain" value="—" />
+                <PlaceholderField label="domainHash" value="—" mono tone="accent" />
+                <PlaceholderField label="certHash" value="—" mono tone="accent" />
+                <PlaceholderField label="Approver" value="—" mono tone="accent" />
               </div>
 
-              <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">certHash</p>
-                <p className="mono m-0 text-sm break-all text-slate-900">{state.certHash || "-"}</p>
+              <div className="approval-placeholder-block">
+                <span className="approval-placeholder-label">Memo</span>
+                <div className="approval-placeholder-area">
+                  인증서를 선택한 뒤 승인 메모를 입력할 수 있습니다.
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-                <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Approver</p>
-                <p className="mono m-0 text-sm break-all text-slate-900">{address || "-"}</p>
-              </div>
+              <button className="approval-submit-disabled" disabled type="button">
+                온체인 승인
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form className="approval-selected-layout" onSubmit={onSubmit}>
+            <div className="approval-empty-header">
+              <h2 className="approval-section-title">선택한 인증서</h2>
+              <p className="approval-section-copy">
+                선택된 인증서 정보와 승인 메모를 확인한 뒤 온체인 승인합니다.
+              </p>
             </div>
 
-            <div className="field">
-              <label htmlFor="approval-memo">Memo</label>
-              <textarea
-                id="approval-memo"
-                value={state.memo}
-                onChange={(event) => update("memo", event.target.value)}
-              />
+            <div className="approval-selected-grid">
+              <div className="approval-selected-card-wrap">
+                {selectedSearchResult && (
+                  <SearchResultCard
+                    item={selectedSearchResult}
+                    onReset={resetSelectedCertificate}
+                    selected
+                  />
+                )}
+              </div>
+
+              <aside
+                className={
+                  selectionNeedsReview
+                    ? "approval-review-card approval-review-card-warning"
+                    : "approval-review-card approval-review-card-ready"
+                }
+              >
+                <span className="approval-review-pill">
+                  {selectionNeedsReview ? "NEEDS REVIEW" : "REVIEW READY"}
+                </span>
+                <h3 className="approval-review-title">
+                  {selectionNeedsReview
+                    ? "와일드카드 또는 수동 검토 대상입니다."
+                    : "현재 선택한 인증서는 승인 준비 상태입니다."}
+                </h3>
+                <p className="approval-review-copy">
+                  {selectionNeedsReview
+                    ? "도메인 일치 방식, wildcard 포함 여부, subject 정보를 검토한 뒤 온체인 승인하세요."
+                    : "도메인, certHash, subject, 유효기간을 검토한 뒤 승인 메모와 함께 온체인에 등록할 수 있습니다."}
+                </p>
+                {selectedSearchResult && (
+                  <div className="approval-review-meta">
+                    <ReviewMeta label="Review State" value={selectedSearchResult.reviewState} />
+                    <ReviewMeta
+                      label="Wildcard"
+                      value={selectedSearchResult.wildcard ? "Included" : "Not included"}
+                    />
+                    <ReviewMeta
+                      label="Validity"
+                      value={formatValidityRange(
+                        selectedSearchResult.validFrom,
+                        selectedSearchResult.validTo
+                      )}
+                    />
+                  </div>
+                )}
+              </aside>
             </div>
 
-            <button className="btn btn-primary" disabled={isPending || !domainHash || !state.certHash}>
-              {isPending ? "승인 중..." : "온체인 승인"}
-            </button>
+            <div className="approval-request-info">
+              <div className="approval-request-info-copy">
+                <h3 className="approval-request-title">승인 요청 정보</h3>
+                <p className="approval-request-description">
+                  검색으로 선택된 인증서 데이터를 기반으로 approval transaction을 구성합니다.
+                </p>
+              </div>
+
+              <div className="approval-placeholder-grid">
+                <PlaceholderField label="Domain" value={state.domain || "-"} />
+                <PlaceholderField
+                  label="domainHash"
+                  value={domainHash || "-"}
+                  mono
+                  tone="accent"
+                />
+                <PlaceholderField
+                  className="approval-placeholder-field-wide"
+                  label="certHash"
+                  value={state.certHash || "-"}
+                  mono
+                  tone="accent"
+                />
+                <PlaceholderField
+                  className="approval-placeholder-field-wide"
+                  label="Approver"
+                  value={address || "-"}
+                  mono
+                  tone="accent"
+                />
+              </div>
+
+              <div className="approval-placeholder-block">
+                <label className="approval-placeholder-label" htmlFor="approval-memo">
+                  Memo
+                </label>
+                <textarea
+                  className="approval-memo-area"
+                  id="approval-memo"
+                  placeholder="온체인에 남길 승인 메모를 입력하세요."
+                  value={state.memo}
+                  onChange={(event) => update("memo", event.target.value)}
+                />
+              </div>
+
+              <button
+                className="approval-submit-button"
+                disabled={isPending || !domainHash || !state.certHash}
+              >
+                {isPending ? "인증서 승인 중..." : "인증서 승인"}
+              </button>
+            </div>
           </form>
         )}
       </div>
@@ -360,26 +458,27 @@ export function CertificateApprovalForm() {
       {isSearchModalOpen &&
         createPortal(
           <div className="modal-backdrop" onClick={() => setIsSearchModalOpen(false)}>
-            <div className="modal-panel glass" onClick={(event) => event.stopPropagation()}>
-              <div className="modal-header">
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    SSLMate 인증서 검색
-                  </p>
+            <div className="approval-modal-panel" onClick={(event) => event.stopPropagation()}>
+              <div className="approval-modal-header">
+                <div className="approval-modal-title-wrap">
+                  <h2 className="approval-modal-title">인증서 검색</h2>
                 </div>
                 <button
-                  className="btn btn-secondary"
+                  className="approval-modal-close"
                   onClick={() => setIsSearchModalOpen(false)}
                   type="button"
                 >
-                  닫기
+                  <X size={16} strokeWidth={2.4} />
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-[1fr_auto]">
-                <div className="field">
-                  <label htmlFor="certificate-search-domain">Domain Search</label>
+              <div className="approval-modal-search-row">
+                <div className="approval-modal-search-field">
+                  <label className="approval-modal-label" htmlFor="certificate-search-domain">
+                    Domain Search
+                  </label>
                   <input
+                    className="approval-modal-input"
                     id="certificate-search-domain"
                     placeholder="example.com"
                     value={searchDomain}
@@ -387,107 +486,121 @@ export function CertificateApprovalForm() {
                   />
                 </div>
                 <button
-                  className="btn btn-primary self-end"
+                  className="approval-modal-search-button"
                   disabled={isSearching || !normalizedSearchDomain}
                   onClick={handleSearch}
                   type="button"
                 >
-                  {isSearching ? "검색 중..." : "검색"}
+                  <Search size={16} strokeWidth={2.3} />
+                  <span>{isSearching ? "검색 중..." : "검색"}</span>
                 </button>
               </div>
 
-              <div className="advanced-search-block">
+              <div className="approval-advanced-block">
                 <button
-                  className={`advanced-search-toggle ${isAdvancedSearchOpen ? "advanced-search-toggle-open" : ""}`}
+                  className={`approval-advanced-toggle ${isAdvancedSearchOpen ? "approval-advanced-toggle-open" : ""}`}
                   onClick={() => setIsAdvancedSearchOpen((open) => !open)}
                   type="button"
                 >
-                  <span className="advanced-search-toggle-icon">+</span>
-                  <span>고급 옵션</span>
+                  <span className="approval-advanced-toggle-icon">
+                    {isAdvancedSearchOpen ? "⌃" : "⌄"}
+                  </span>
+                  <span className="approval-advanced-toggle-copy">고급 옵션</span>
+                  <span className="approval-advanced-toggle-description">
+                    certHash 및 검색 범위 필터
+                  </span>
+                  <span className="approval-advanced-toggle-icon">
+                    {isAdvancedSearchOpen ? "−" : "+"}
+                  </span>
                 </button>
 
                 {isAdvancedSearchOpen && (
-                  <div className="advanced-search-panel">
-                    <div className="field">
-                      <label htmlFor="certificate-search-cert-hash">certHash Filter</label>
-                      <input
-                        id="certificate-search-cert-hash"
-                        placeholder="0x... extension에서 본 certHash"
-                        value={searchCertHash}
-                        onChange={(event) => setSearchCertHash(event.target.value)}
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="approval-advanced-panel">
+                    <div className="approval-cert-filter-row">
+                      <div className="approval-modal-search-field">
+                        <div className="approval-filter-label-row">
+                          <label
+                            className="approval-modal-label"
+                            htmlFor="certificate-search-cert-hash"
+                          >
+                            certHash Filter
+                          </label>
+                          <p className="approval-filter-note">
+                            {normalizedSearchCertHash
+                              ? `현재 certHash 필터와 일치하는 결과만 표시합니다.`
+                              : "certHash를 입력하면 검색 결과 중 정확히 일치하는 인증서만 남길 수 있습니다."}
+                          </p>
+                        </div>
+                        <input
+                          className="approval-modal-input"
+                          id="certificate-search-cert-hash"
+                          placeholder="0x... extension에서 확인한 certHash"
+                          value={searchCertHash}
+                          onChange={(event) => setSearchCertHash(event.target.value)}
+                        />
+                      </div>
                       <button
-                        className="btn btn-secondary"
+                        className="approval-cert-filter-refresh"
                         onClick={() => setSearchCertHash(state.certHash)}
                         type="button"
                       >
-                        폼의 certHash 사용
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setSearchCertHash("")}
-                        type="button"
-                      >
-                        certHash 필터 초기화
+                        <RefreshCw size={14} strokeWidth={2.2} />
                       </button>
                     </div>
-                    <p className="m-0 text-sm text-slate-500">
-                      extension에서 본 certHash를 넣으면 SSLMate 결과 중 정확히 일치하는 인증서만 남깁니다.
-                    </p>
+
+                    <div className="approval-toggle-grid">
+                      <label className="approval-toggle-card">
+                        <input
+                          checked={includeSubdomains}
+                          onChange={(event) => setIncludeSubdomains(event.target.checked)}
+                          type="checkbox"
+                        />
+                        <span>Include subdomains</span>
+                      </label>
+
+                      <label className="approval-toggle-card">
+                        <input
+                          checked={matchWildcards}
+                          onChange={(event) => setMatchWildcards(event.target.checked)}
+                          type="checkbox"
+                        />
+                        <span>Match wildcards</span>
+                      </label>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700">
-                  <input
-                    checked={includeSubdomains}
-                    onChange={(event) => setIncludeSubdomains(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>Include subdomains</span>
-                </label>
-
-                <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700">
-                  <input
-                    checked={matchWildcards}
-                    onChange={(event) => setMatchWildcards(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>Match wildcards</span>
-                </label>
-              </div>
-
               {searchError && (
-                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  <p className="m-0">{searchError}</p>
-                  <div className="mt-3">
-                    <button
-                      className="btn btn-secondary"
-                      disabled={isSearching || !normalizedSearchDomain}
-                      onClick={handleSearch}
-                      type="button"
-                    >
-                      {isSearching ? "재시도 중..." : "검색 재시도"}
-                    </button>
-                  </div>
-                  <p className="mt-3 mb-0 text-xs text-red-700/80">
-                    certHash 필터를 함께 넣으면 페이지 순회를 더 빨리 멈출 수 있어서 rate limit 가능성을 줄일 수 있습니다.
-                  </p>
+                <div className="approval-search-error">
+                  <p className="approval-search-error-title">검색 중 오류가 발생했습니다.</p>
+                  <p className="approval-search-error-copy">{searchError}</p>
+                  <button
+                    className="approval-filter-action"
+                    disabled={isSearching || !normalizedSearchDomain}
+                    onClick={handleSearch}
+                    type="button"
+                  >
+                    {isSearching ? "재시도 중..." : "검색 재시도"}
+                  </button>
                 </div>
               )}
 
-              <div className="modal-summary">
-                <span>
-                  {searchResults.length === 0
-                    ? "검색 결과가 없습니다."
-                    : `총 ${searchResults.length}개 수집, 현재 필터 ${visibleResults.length}개, ${resultsPage} / ${totalResultPages} 페이지`}
-                </span>
-                <div className="modal-pagination">
+              <div className="approval-modal-results-bar">
+                <div className="approval-modal-results-copy">
+                  <p className="approval-modal-results-title">검색 결과</p>
+                  <p className="approval-modal-results-meta">
+                    {searchResults.length === 0
+                      ? "검색 결과가 없습니다."
+                      : `${visibleResults.length}개 결과`}
+                  </p>
+                </div>
+                <div className="approval-modal-pagination">
+                  <span className="approval-pagination-status">
+                    {resultsPage} / {totalResultPages} 페이지
+                  </span>
                   <button
-                    className="btn btn-secondary"
+                    className="approval-pagination-button"
                     disabled={resultsPage === 1}
                     onClick={() => setResultsPage((page) => Math.max(1, page - 1))}
                     type="button"
@@ -495,7 +608,7 @@ export function CertificateApprovalForm() {
                     이전
                   </button>
                   <button
-                    className="btn btn-secondary"
+                    className="approval-pagination-button"
                     disabled={resultsPage === totalResultPages}
                     onClick={() => setResultsPage((page) => Math.min(totalResultPages, page + 1))}
                     type="button"
@@ -506,42 +619,44 @@ export function CertificateApprovalForm() {
               </div>
 
               {normalizedSearchDomain && (
-                <div className="search-domain-heading">{searchDomainCandidates.join(" / ")}</div>
+                <div className="approval-domain-candidates">{searchDomainCandidates.join(" / ")}</div>
               )}
 
-              <div className="menu-bar menu-bar-filters">
+              <div className="approval-tab-row">
                 <button
-                  className={`menu-tab menu-tab-filter ${activeResultsTab === "active" ? "menu-tab-active" : ""}`}
+                  className={`approval-tab-button ${activeResultsTab === "active" ? "approval-tab-button-active" : ""}`}
                   onClick={() => {
                     setActiveResultsTab("active");
                     setResultsPage(1);
                   }}
                   type="button"
                 >
-                  지금 사용 가능 {filteredActiveResults.length}
+                  <span>현재 유효</span>
+                  <span>{filteredActiveResults.length}</span>
                 </button>
                 <button
-                  className={`menu-tab menu-tab-filter ${activeResultsTab === "upcoming" ? "menu-tab-active" : ""}`}
+                  className={`approval-tab-button ${activeResultsTab === "upcoming" ? "approval-tab-button-active" : ""}`}
                   onClick={() => {
                     setActiveResultsTab("upcoming");
                     setResultsPage(1);
                   }}
                   type="button"
                 >
-                  곧 사용 가능 {filteredUpcomingResults.length}
+                  <span>유효 예정</span>
+                  <span>{filteredUpcomingResults.length}</span>
                 </button>
               </div>
 
-              <div className="modal-results modal-results-spaced">
+              <div className="approval-results-grid">
                 {visibleResults.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+                  <div className="approval-results-empty">
                     {searchResults.length === 0
-                      ? "domain을 입력하고 `Search SSLMate`를 실행하세요."
+                      ? "domain을 입력하고 인증서 검색을 실행하세요."
                       : normalizedSearchCertHash
                         ? "입력한 certHash와 정확히 일치하는 검색 결과가 없습니다."
-                      : activeResultsTab === "active"
-                        ? "지금 사용 가능한 검색 결과가 없습니다."
-                        : "곧 사용 가능해질 검색 결과가 없습니다."}
+                        : activeResultsTab === "active"
+                          ? "현재 유효한 검색 결과가 없습니다."
+                          : "예정된 검색 결과가 없습니다."}
                   </div>
                 ) : (
                   pagedSearchResults.map((item) => (
@@ -553,6 +668,7 @@ export function CertificateApprovalForm() {
                           ? item.certHash.toLowerCase() === normalizedSearchCertHash
                           : false
                       }
+                      selected={selectedSearchResult?.id === item.id}
                       onSelect={selectSearchResult}
                     />
                   ))
@@ -570,85 +686,149 @@ export function CertificateApprovalForm() {
   }
 }
 
+function PlaceholderField(props: {
+  className?: string;
+  label: string;
+  value: string;
+  mono?: boolean;
+  tone?: "default" | "accent";
+}) {
+  return (
+    <div className={["approval-placeholder-field", props.className ?? ""].filter(Boolean).join(" ")}>
+      <span className="approval-placeholder-label">{props.label}</span>
+      <div
+        className={[
+          "approval-placeholder-input",
+          props.mono ? "approval-placeholder-input-mono" : "",
+          props.tone === "accent" ? "approval-placeholder-input-accent" : ""
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {props.value}
+      </div>
+    </div>
+  );
+}
+
+function ReviewMeta(props: { label: string; value: string }) {
+  return (
+    <div className="approval-review-meta-row">
+      <span className="approval-review-meta-label">{props.label}</span>
+      <span className="approval-review-meta-value">{props.value}</span>
+    </div>
+  );
+}
+
 function SearchResultCard(props: {
   item: CrtSearchResultItem;
   highlighted?: boolean;
+  onReset?: () => void;
+  selected?: boolean;
   onSelect?: (item: CrtSearchResultItem) => void;
 }) {
-  const chipClassName =
-    props.item.reviewState === "Rejected" ? "status-revoked" : "status-pending";
-  const cardClassName = props.highlighted
-    ? "search-result-card flex h-full flex-col rounded-2xl border-2 border-emerald-400 bg-emerald-50/60 p-5 shadow-[0_0_0_1px_rgba(52,211,153,0.15)]"
-    : "search-result-card flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white/75 p-5";
+  const cardClassName = [
+    "approval-result-card",
+    props.selected ? "approval-result-card-selected" : "",
+    props.highlighted ? "approval-result-card-highlighted" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <article className={cardClassName}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <span className="issuer-pill">{props.item.issuer}</span>
-          <p className="search-result-hash m-0 text-lg break-all font-semibold">{props.item.certHash || "-"}</p>
-        </div>
-        <span className={`status-chip ${chipClassName}`}>{props.item.reviewState}</span>
-      </div>
+      <h3 className="approval-result-domain">{props.item.domain || "-"}</h3>
 
       {props.highlighted && (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-100/80 p-3 text-sm text-emerald-900">
-          extension에서 입력한 certHash와 일치합니다.
+        <div className="approval-result-callout">
+          extension에서 입력한 certHash와 일치하는 인증서입니다.
         </div>
       )}
 
-      <div className="mt-4">
-        <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Identities</p>
-        <p className="m-0 text-sm break-all leading-6">
-          {props.item.identities.length === 0
-            ? "-"
-            : props.item.identities.map((identity, index) => (
-                <span
-                  key={`${props.item.id}:${identity}:${index}`}
-                  className={identity === props.item.domain ? "matched-identity" : "text-slate-600"}
-                >
-                  {index > 0 ? ", " : ""}
-                  {identity}
-                </span>
-              ))}
-        </p>
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        <SearchEntry label="Subject" value={props.item.subject || "-"} />
-        <div className="grid gap-3 grid-cols-2">
-          <SearchEntry label="validFrom" value={props.item.validFrom || "-"} />
-          <SearchEntry label="validTo" value={props.item.validTo || "-"} />
+      <div className="approval-result-details">
+        <SearchEntry label="Issuer" value={props.item.issuer || "-"} strong />
+        <SearchEntry label="certHash" value={props.item.certHash || "-"} accent mono />
+        <div className="approval-result-dates">
+          <SearchEntry label="Valid from" value={formatDisplayDate(props.item.validFrom)} />
+          <SearchEntry label="Valid to" value={formatDisplayDate(props.item.validTo)} />
         </div>
+        <SearchEntry
+          label="Identities"
+          value={props.item.identities.length === 0 ? "-" : props.item.identities.join(", ")}
+        />
       </div>
 
-      <div className="mt-auto pt-5">
-        {props.item.wildcard && (
-          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            Wildcard certificate입니다. exact domain-only 정책 기준으로는 추가 검토가 필요합니다.
-          </div>
+      {props.item.wildcard && (
+        <div className="approval-result-warning">
+          Wildcard certificate입니다. exact domain-only 기준이라면 수동 검토가 필요합니다.
+        </div>
+      )}
+
+      <div className="approval-result-footer">
+        <p className="approval-result-external">{normalizeExternalLabel(props.item.externalLabel)}</p>
+        {props.onSelect ? (
+          <button
+            className={props.selected ? "approval-result-select active" : "approval-result-select"}
+            onClick={() => props.onSelect?.(props.item)}
+            type="button"
+          >
+            {props.selected ? "선택됨" : "선택"}
+          </button>
+        ) : props.onReset ? (
+          <button className="approval-result-select" onClick={props.onReset} type="button">
+            선택 초기화
+          </button>
+        ) : (
+          <span className="approval-selected-chip">
+            <SearchCheck size={14} strokeWidth={2.2} />
+            선택됨
+          </span>
         )}
-
-        <div className="flex items-end justify-between gap-4">
-          <p className="external-label m-0 text-xs text-slate-500">{props.item.externalLabel}</p>
-          {props.onSelect ? (
-            <button className="btn btn-secondary" onClick={() => props.onSelect?.(props.item)} type="button">
-              인증서 선택
-            </button>
-          ) : (
-            <span className="selected-certificate-chip">선택됨</span>
-          )}
-        </div>
       </div>
     </article>
   );
 }
 
-function SearchEntry(props: { label: string; value: string }) {
+function SearchEntry(props: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  strong?: boolean;
+  mono?: boolean;
+}) {
   return (
-    <div>
-      <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">{props.label}</p>
-      <p className="m-0 text-sm break-all">{props.value}</p>
+    <div className="approval-result-entry">
+      <p className="approval-result-label">{props.label}</p>
+      <p
+        className={[
+          "approval-result-entry-value",
+          props.accent ? "approval-result-entry-value-accent" : "",
+          props.strong ? "approval-result-entry-value-strong" : "",
+          props.mono ? "approval-result-entry-value-mono" : ""
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {props.value}
+      </p>
     </div>
   );
+}
+
+function formatDisplayDate(value: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+function formatValidityRange(validFrom: string, validTo: string) {
+  return `${formatDisplayDate(validFrom)} - ${formatDisplayDate(validTo)}`;
+}
+
+function normalizeExternalLabel(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
