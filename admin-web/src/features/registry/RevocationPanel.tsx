@@ -1,11 +1,19 @@
-import { useMemo, useState } from "react";
-import { Ban } from "lucide-react";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, Search } from "lucide-react";
+import type { Abi } from "viem";
+import { useAccount, useReadContract, useReadContracts, useWriteContract } from "wagmi";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
 import { deriveDomainHash, normalizeDomain } from "../../lib/domain/hash";
 import type { CertificateStatusView } from "../../types/admin";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+type RevocationRow = {
+  domainHash: `0x${string}`;
+  certHash: `0x${string}`;
+  displayDomain: string;
+  status: CertificateStatusView;
+};
 
 export function RevocationPanel() {
   const { address } = useAccount();
@@ -14,7 +22,9 @@ export function RevocationPanel() {
   const [searchedDomain, setSearchedDomain] = useState("");
   const [selectedCertHash, setSelectedCertHash] = useState<`0x${string}` | "">("");
   const [memo, setMemo] = useState("");
+  const [copiedAddress, setCopiedAddress] = useState(false);
 
+  const normalizedInput = useMemo(() => normalizeDomain(domainInput), [domainInput]);
   const normalizedDomain = useMemo(() => normalizeDomain(searchedDomain), [searchedDomain]);
   const domainHash = normalizedDomain
     ? deriveDomainHash(registryChainId, normalizedDomain)
@@ -41,221 +51,314 @@ export function RevocationPanel() {
   });
 
   const ownerAddress =
-    typeof ownerQuery.data === "string" ? ownerQuery.data.toLowerCase() : ZERO_ADDRESS;
+    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[0] === "string"
+      ? ownerQuery.data[0].toLowerCase()
+      : ZERO_ADDRESS;
+  const hasRegisteredOwner =
+    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[1] === "boolean"
+      ? ownerQuery.data[1]
+      : false;
   const connectedAddress = (address ?? ZERO_ADDRESS).toLowerCase();
-  const hasRegisteredOwner = ownerAddress !== ZERO_ADDRESS;
   const ownerMatches = hasRegisteredOwner && connectedAddress === ownerAddress;
   const approvedHashes = Array.isArray(approvedHashesQuery.data)
     ? (approvedHashesQuery.data as `0x${string}`[])
     : [];
 
+  const statusContracts = useMemo(
+    () =>
+      domainHash
+        ? approvedHashes.map((certHash) => ({
+            address: registryAddress,
+            abi: registryAbi as Abi,
+            functionName: "getCertificateStatus" as const,
+            args: [domainHash, certHash] as const
+          }))
+        : [],
+    [approvedHashes, domainHash]
+  );
+
+  const statusesQuery = useReadContracts({
+    contracts: statusContracts,
+    query: {
+      enabled: statusContracts.length > 0
+    }
+  });
+
+  const rows = useMemo<RevocationRow[]>(
+    () =>
+      approvedHashes
+        .map((certHash, index) => {
+          const result = statusesQuery.data?.[index];
+          if (!result || result.status !== "success") return null;
+
+          const status = result.result as CertificateStatusView;
+          if (!status.approved || status.revoked) return null;
+
+          return {
+            domainHash: domainHash as `0x${string}`,
+            certHash,
+            displayDomain: extractDisplayDomain(status.subject, normalizedDomain),
+            status
+          };
+        })
+        .filter((entry): entry is RevocationRow => entry !== null),
+    [approvedHashes, domainHash, normalizedDomain, statusesQuery.data]
+  );
+
+  const selectedRow = rows.find((row) => row.certHash === selectedCertHash) ?? null;
+  const hasError = Boolean(ownerQuery.error || approvedHashesQuery.error || statusesQuery.error);
+  const isLoading =
+    ownerQuery.isLoading || approvedHashesQuery.isLoading || statusesQuery.isLoading;
+
+  useEffect(() => {
+    if (!selectedCertHash) return;
+    if (!rows.some((row) => row.certHash === selectedCertHash)) {
+      setSelectedCertHash("");
+    }
+  }, [rows, selectedCertHash]);
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!domainHash || !selectedCertHash || !ownerMatches) return;
+    if (!selectedRow || !ownerMatches) return;
 
     await writeContractAsync({
       address: registryAddress,
       abi: registryAbi,
       functionName: "revokeCertificate",
-      args: [domainHash, selectedCertHash, memo]
+      args: [selectedRow.domainHash, selectedRow.certHash, memo]
     });
   }
 
   function handleSearch() {
+    if (!normalizedInput) return;
+
     setSelectedCertHash("");
-    setSearchedDomain(domainInput);
+    setMemo("");
+    setSearchedDomain(normalizedInput);
+  }
+
+  async function copyConnectedAddress() {
+    if (!address) return;
+
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopiedAddress(true);
+      window.setTimeout(() => setCopiedAddress(false), 1600);
+    } catch {
+      setCopiedAddress(false);
+    }
   }
 
   return (
-    <section className="glass p-6">
-      <div className="mb-5">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-          Revoke Certificate
+    <section className="revocation-screen">
+      <div className="revocation-screen-copy">
+        <h1 className="revocation-screen-title">인증 취소</h1>
+        <p className="revocation-screen-subtitle">
+          이 계정으로 승인한 인증서 중 취소할 대상을 선택하고 온체인 인증 취소를 실행합니다.
         </p>
-        <div className="module-title-row">
-          <span className="module-icon-badge">
-            <Ban size={18} strokeWidth={2.2} />
-          </span>
-          <h2 className="m-0 text-xl font-semibold">Revocation Flow</h2>
-        </div>
       </div>
 
-      <form className="grid gap-4" onSubmit={onSubmit}>
-        <div className="field">
-          <label htmlFor="revocation-domain">Domain</label>
-          <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+      <div className="revocation-account-card">
+        <div className="revocation-account-icon">
+          <Copy size={16} strokeWidth={2.1} />
+        </div>
+        <p className="revocation-account-address">{address || "-"}</p>
+        <button className="revocation-account-copy" onClick={copyConnectedAddress} type="button">
+          {copiedAddress ? "복사됨" : "복사"}
+        </button>
+      </div>
+
+      <form className="revocation-screen-layout" onSubmit={onSubmit}>
+        <section className="revocation-list-card">
+          <div className="revocation-list-header">
+            <div>
+              <h2 className="revocation-list-title">승인한 인증서 목록</h2>
+              <p className="revocation-list-copy">인증 취소 대상을 선택하세요</p>
+            </div>
+          </div>
+
+          <div className="revocation-search-row">
+            <label className="revocation-search-label" htmlFor="revocation-domain-search">
+              <Search size={13} strokeWidth={2.1} />
+              도메인 검색
+            </label>
             <input
-              id="revocation-domain"
+              className="revocation-search-input"
+              id="revocation-domain-search"
               placeholder="example.com"
               value={domainInput}
               onChange={(event) => setDomainInput(event.target.value)}
             />
             <button
-              className="btn btn-primary self-end"
-              disabled={!normalizeDomain(domainInput)}
+              className="revocation-search-button"
+              disabled={!normalizedInput}
               onClick={handleSearch}
               type="button"
             >
               검색
             </button>
           </div>
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-            <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">domainHash</p>
-            <p className="mono m-0 text-sm break-all">{domainHash ?? "-"}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-            <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Owner Check</p>
-            <p className="m-0 text-sm">
-              {!domainHash
-                ? "도메인을 입력하세요."
-                : ownerQuery.isLoading
-                  ? "owner 확인 중..."
-                  : !hasRegisteredOwner
-                    ? "등록된 owner가 없습니다."
-                    : ownerMatches
-                      ? "현재 연결된 지갑이 owner와 일치합니다."
-                      : "현재 연결된 지갑이 owner와 일치하지 않습니다."}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4">
-          {!domainHash && (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
-              폐기할 도메인을 먼저 입력하면 승인된 인증서 목록을 조회합니다.
+          {domainHash && !ownerQuery.isLoading && !ownerMatches && (
+            <div className="revocation-owner-warning">
+              {hasRegisteredOwner
+                ? "현재 연결된 owner 지갑과 도메인 owner가 일치하지 않아 인증 취소를 실행할 수 없습니다."
+                : "등록된 owner가 없는 도메인입니다."}
             </div>
           )}
 
-          {domainHash && approvedHashesQuery.isLoading && (
-            <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-5 text-sm text-slate-500">
-              승인된 인증서 목록을 불러오는 중입니다.
+          <div className="revocation-table-wrap">
+            <div className="revocation-table-head">
+              <span>certHash · ID</span>
+              <span>인증서 / Issuer</span>
+              <span>유효기간</span>
+              <span>온체인 상태</span>
+              <span>작업</span>
             </div>
-          )}
 
-          {domainHash && (ownerQuery.error || approvedHashesQuery.error) && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-              온체인 조회 중 오류가 발생했습니다. 잠시 후 다시 검색해 주세요.
-            </div>
-          )}
-
-          {domainHash && !ownerQuery.error && !approvedHashesQuery.error && !approvedHashesQuery.isLoading && approvedHashes.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
-              이 도메인에 등록된 승인 인증서가 없습니다.
-            </div>
-          )}
-
-          {!ownerQuery.error && !approvedHashesQuery.error && approvedHashes.length > 0 && (
-            <div className="grid gap-4">
-              <p className="mb-0 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                폐기할 인증서 선택
-              </p>
-              <div className="grid gap-4">
-                {approvedHashes.map((certHash) => (
-                  <RevocationCertificateCard
-                    key={certHash}
-                    certHash={certHash}
-                    domainHash={domainHash as `0x${string}`}
-                    selected={selectedCertHash === certHash}
-                    onSelect={setSelectedCertHash}
-                  />
-                ))}
+            {!domainHash && (
+              <div className="revocation-empty-state">
+                취소할 인증서를 조회할 도메인을 먼저 검색하세요.
               </div>
+            )}
+
+            {domainHash && isLoading && (
+              <div className="revocation-empty-state">
+                승인된 인증서 목록을 불러오는 중입니다.
+              </div>
+            )}
+
+            {domainHash && hasError && (
+              <div className="revocation-empty-state revocation-empty-state-error">
+                온체인 조회 중 오류가 발생했습니다. 잠시 후 다시 검색해 주세요.
+              </div>
+            )}
+
+            {domainHash && !isLoading && !hasError && rows.length === 0 && (
+              <div className="revocation-empty-state">
+                이 도메인에 등록된 승인 인증서가 없습니다.
+              </div>
+            )}
+
+            {domainHash && !isLoading && !hasError && rows.length > 0 && (
+              <table className="revocation-table">
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      className={`revocation-table-row ${selectedCertHash === row.certHash ? "revocation-table-row-selected" : ""}`}
+                      key={`${row.domainHash}:${row.certHash}`}
+                    >
+                      <td>
+                        <span className="revocation-hash-value">
+                          {formatHashPreview(row.certHash)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="revocation-cert-cell">
+                          <strong>{row.displayDomain}</strong>
+                          <span>{row.status.issuer || "-"}</span>
+                        </div>
+                      </td>
+                      <td className="revocation-date-cell">
+                        {formatValidityRange(row.status.validFrom, row.status.validTo)}
+                      </td>
+                      <td>
+                        <span className="revocation-status-chip">APPROVED</span>
+                      </td>
+                      <td>
+                        <button
+                          className={`revocation-select-button ${selectedCertHash === row.certHash ? "revocation-select-button-active" : ""}`}
+                          onClick={() => setSelectedCertHash(row.certHash)}
+                          type="button"
+                        >
+                          {selectedCertHash === row.certHash ? "선택됨" : "선택"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        <section className="revocation-action-card">
+          <div className="revocation-action-header">
+            <h2 className="revocation-action-title">선택한 인증서 인증 취소</h2>
+          </div>
+
+          <div className="revocation-selected-summary">
+            <span className="revocation-selected-hash">
+              {selectedRow ? formatHashPreview(selectedRow.certHash) : "-"}
+            </span>
+            <span className="revocation-selected-meta">
+              {selectedRow
+                ? `${selectedRow.displayDomain} · ${selectedRow.status.issuer || "-"}`
+                : "인증 취소할 인증서를 먼저 선택하세요."}
+            </span>
+          </div>
+
+          <div className="revocation-memo-layout">
+            <div className="revocation-memo-field">
+              <label className="revocation-memo-label" htmlFor="revocation-memo">
+                인증 취소 메모
+              </label>
+              <input
+                className="revocation-memo-input"
+                id="revocation-memo"
+                placeholder="Key compromise suspected · rotate certificate"
+                value={memo}
+                onChange={(event) => setMemo(event.target.value)}
+              />
             </div>
-          )}
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-            <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Selected certHash</p>
-            <p className="mono m-0 text-sm break-all">{selectedCertHash || "-"}</p>
+            <div className="revocation-warning-box">
+              인증 취소된 인증서는 검증 과정에서 승인되지 않은 인증서로 처리될 수 있습니다.
+            </div>
           </div>
-          <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-4">
-            <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">Connected Approver</p>
-            <p className="mono m-0 text-sm break-all">{address || "-"}</p>
-          </div>
-        </div>
 
-        <div className="field">
-          <label htmlFor="revocation-memo">Memo</label>
-          <textarea
-            id="revocation-memo"
-            value={memo}
-            onChange={(event) => setMemo(event.target.value)}
-          />
-        </div>
-
-        <button
-          className="btn btn-secondary"
-          disabled={isPending || !domainHash || !selectedCertHash || !ownerMatches}
-        >
-          {isPending ? "폐기 중..." : "온체인 폐기"}
-        </button>
+          <button
+            className="revocation-submit-button"
+            disabled={isPending || !selectedRow || !ownerMatches}
+            type="submit"
+          >
+            {isPending ? "인증 취소 중..." : "인증 취소 실행"}
+          </button>
+        </section>
       </form>
     </section>
   );
 }
 
-function RevocationCertificateCard(props: {
-  domainHash: `0x${string}`;
-  certHash: `0x${string}`;
-  selected: boolean;
-  onSelect: (certHash: `0x${string}`) => void;
-}) {
-  const query = useReadContract({
-    address: registryAddress,
-    abi: registryAbi,
-    functionName: "getCertificateStatus",
-    args: [props.domainHash, props.certHash]
-  });
+function extractDisplayDomain(subject: string, fallback: string) {
+  const normalizedSubject = subject.trim().toLowerCase();
+  const subjectDomain = normalizedSubject.match(/(\*\.)?([a-z0-9-]+\.)+[a-z]{2,}/i)?.[0];
 
-  const status = query.data as CertificateStatusView | undefined;
-  const selectable = Boolean(status?.approved) && !status?.revoked;
-
-  return (
-    <article className="rounded-2xl border border-slate-200/70 bg-white/75 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="grid gap-3">
-          <span className={`status-chip ${status?.revoked ? "status-revoked" : "status-approved"}`}>
-            {status?.revoked ? "Revoked" : status?.approved ? "Approved" : "Unknown"}
-          </span>
-          <p className="mono m-0 text-sm break-all font-semibold">{props.certHash}</p>
-        </div>
-
-        <button
-          className="btn btn-secondary"
-          disabled={!selectable}
-          onClick={() => props.onSelect(props.certHash)}
-          type="button"
-        >
-          {props.selected ? "선택됨" : "폐기할 인증서 선택"}
-        </button>
-      </div>
-
-      {query.isLoading ? (
-        <p className="mt-4 text-sm text-slate-500">인증서 상태를 조회하는 중입니다.</p>
-      ) : status ? (
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <RevocationDetail label="Issuer" value={status.issuer} />
-          <RevocationDetail label="Subject" value={status.subject} />
-          <RevocationDetail label="Serial Number" value={status.serialNumber} />
-          <RevocationDetail label="Memo" value={status.memo} />
-        </div>
-      ) : (
-        <p className="mt-4 text-sm text-slate-500">온체인 상태를 찾지 못했습니다.</p>
-      )}
-    </article>
-  );
+  return subjectDomain || fallback || "unknown";
 }
 
-function RevocationDetail(props: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">{props.label}</p>
-      <p className="m-0 text-sm break-all">{props.value || "-"}</p>
-    </div>
-  );
+function formatHashPreview(value: string) {
+  if (value.length <= 14) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function bigintToDate(value: bigint) {
+  if (value <= 0n) return null;
+  return new Date(Number(value) * 1000);
+}
+
+function formatDate(value: bigint) {
+  const date = bigintToDate(value);
+  if (!date) return "-";
+
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${year}.${month}.${day}`;
+}
+
+function formatValidityRange(validFrom: bigint, validTo: bigint) {
+  return `${formatDate(validFrom)} ~ ${formatDate(validTo)}`;
 }

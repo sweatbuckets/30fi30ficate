@@ -266,6 +266,11 @@ export function CertificateApprovalForm() {
     setIsSearchModalOpen(false);
   }
 
+  function resetSelectedCertificate() {
+    setState(initialState);
+    setSelectedSearchResult(null);
+  }
+
   return (
     <section className="approval-screen">
       <div className="approval-screen-header">
@@ -318,9 +323,9 @@ export function CertificateApprovalForm() {
 
               <div className="approval-placeholder-grid">
                 <PlaceholderField label="Domain" value="—" />
-                <PlaceholderField label="domainHash" value="—" mono />
-                <PlaceholderField label="certHash" value="—" mono />
-                <PlaceholderField label="Approver" value="—" mono />
+                <PlaceholderField label="domainHash" value="—" mono tone="accent" />
+                <PlaceholderField label="certHash" value="—" mono tone="accent" />
+                <PlaceholderField label="Approver" value="—" mono tone="accent" />
               </div>
 
               <div className="approval-placeholder-block">
@@ -346,17 +351,13 @@ export function CertificateApprovalForm() {
 
             <div className="approval-selected-grid">
               <div className="approval-selected-card-wrap">
-                {selectedSearchResult && <SearchResultCard item={selectedSearchResult} selected />}
-                <button
-                  className="approval-reset-button"
-                  onClick={() => {
-                    setState(initialState);
-                    setSelectedSearchResult(null);
-                  }}
-                  type="button"
-                >
-                  선택 초기화
-                </button>
+                {selectedSearchResult && (
+                  <SearchResultCard
+                    item={selectedSearchResult}
+                    onReset={resetSelectedCertificate}
+                    selected
+                  />
+                )}
               </div>
 
               <aside
@@ -408,9 +409,26 @@ export function CertificateApprovalForm() {
 
               <div className="approval-placeholder-grid">
                 <PlaceholderField label="Domain" value={state.domain || "-"} />
-                <PlaceholderField label="domainHash" value={domainHash || "-"} mono />
-                <PlaceholderField label="certHash" value={state.certHash || "-"} mono />
-                <PlaceholderField label="Approver" value={address || "-"} mono />
+                <PlaceholderField
+                  label="domainHash"
+                  value={domainHash || "-"}
+                  mono
+                  tone="accent"
+                />
+                <PlaceholderField
+                  className="approval-placeholder-field-wide"
+                  label="certHash"
+                  value={state.certHash || "-"}
+                  mono
+                  tone="accent"
+                />
+                <PlaceholderField
+                  className="approval-placeholder-field-wide"
+                  label="Approver"
+                  value={address || "-"}
+                  mono
+                  tone="accent"
+                />
               </div>
 
               <div className="approval-placeholder-block">
@@ -500,12 +518,19 @@ export function CertificateApprovalForm() {
                   <div className="approval-advanced-panel">
                     <div className="approval-cert-filter-row">
                       <div className="approval-modal-search-field">
-                        <label
-                          className="approval-modal-label"
-                          htmlFor="certificate-search-cert-hash"
-                        >
-                          certHash Filter
-                        </label>
+                        <div className="approval-filter-label-row">
+                          <label
+                            className="approval-modal-label"
+                            htmlFor="certificate-search-cert-hash"
+                          >
+                            certHash Filter
+                          </label>
+                          <p className="approval-filter-note">
+                            {normalizedSearchCertHash
+                              ? `현재 certHash 필터와 일치하는 결과만 표시합니다.`
+                              : "certHash를 입력하면 검색 결과 중 정확히 일치하는 인증서만 남길 수 있습니다."}
+                          </p>
+                        </div>
                         <input
                           className="approval-modal-input"
                           id="certificate-search-cert-hash"
@@ -541,29 +566,6 @@ export function CertificateApprovalForm() {
                         />
                         <span>Match wildcards</span>
                       </label>
-                    </div>
-
-                    <p className="approval-filter-note">
-                      {normalizedSearchCertHash
-                        ? `현재 certHash 필터와 일치하는 인증서만 표시합니다: ${normalizedSearchCertHash}`
-                        : "certHash를 입력하면 검색 결과 중 정확히 일치하는 인증서만 남길 수 있습니다."}
-                    </p>
-
-                    <div className="approval-filter-actions">
-                      <button
-                        className="approval-filter-action"
-                        onClick={() => setSearchCertHash(state.certHash)}
-                        type="button"
-                      >
-                        폼의 certHash 사용
-                      </button>
-                      <button
-                        className="approval-filter-action"
-                        onClick={() => setSearchCertHash("")}
-                        type="button"
-                      >
-                        certHash 초기화
-                      </button>
                     </div>
                   </div>
                 )}
@@ -684,11 +686,25 @@ export function CertificateApprovalForm() {
   }
 }
 
-function PlaceholderField(props: { label: string; value: string; mono?: boolean }) {
+function PlaceholderField(props: {
+  className?: string;
+  label: string;
+  value: string;
+  mono?: boolean;
+  tone?: "default" | "accent";
+}) {
   return (
-    <div className="approval-placeholder-field">
+    <div className={["approval-placeholder-field", props.className ?? ""].filter(Boolean).join(" ")}>
       <span className="approval-placeholder-label">{props.label}</span>
-      <div className={`approval-placeholder-input ${props.mono ? "approval-placeholder-input-mono" : ""}`}>
+      <div
+        className={[
+          "approval-placeholder-input",
+          props.mono ? "approval-placeholder-input-mono" : "",
+          props.tone === "accent" ? "approval-placeholder-input-accent" : ""
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {props.value}
       </div>
     </div>
@@ -707,6 +723,7 @@ function ReviewMeta(props: { label: string; value: string }) {
 function SearchResultCard(props: {
   item: CrtSearchResultItem;
   highlighted?: boolean;
+  onReset?: () => void;
   selected?: boolean;
   onSelect?: (item: CrtSearchResultItem) => void;
 }) {
@@ -730,7 +747,7 @@ function SearchResultCard(props: {
 
       <div className="approval-result-details">
         <SearchEntry label="Issuer" value={props.item.issuer || "-"} strong />
-        <SearchEntry label="certHash" value={shortenMiddle(props.item.certHash)} accent />
+        <SearchEntry label="certHash" value={props.item.certHash || "-"} accent mono />
         <div className="approval-result-dates">
           <SearchEntry label="Valid from" value={formatDisplayDate(props.item.validFrom)} />
           <SearchEntry label="Valid to" value={formatDisplayDate(props.item.validTo)} />
@@ -748,7 +765,7 @@ function SearchResultCard(props: {
       )}
 
       <div className="approval-result-footer">
-        <p className="approval-result-external">{props.item.externalLabel}</p>
+        <p className="approval-result-external">{normalizeExternalLabel(props.item.externalLabel)}</p>
         {props.onSelect ? (
           <button
             className={props.selected ? "approval-result-select active" : "approval-result-select"}
@@ -756,6 +773,10 @@ function SearchResultCard(props: {
             type="button"
           >
             {props.selected ? "선택됨" : "선택"}
+          </button>
+        ) : props.onReset ? (
+          <button className="approval-result-select" onClick={props.onReset} type="button">
+            선택 초기화
           </button>
         ) : (
           <span className="approval-selected-chip">
@@ -768,7 +789,13 @@ function SearchResultCard(props: {
   );
 }
 
-function SearchEntry(props: { label: string; value: string; accent?: boolean; strong?: boolean }) {
+function SearchEntry(props: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  strong?: boolean;
+  mono?: boolean;
+}) {
   return (
     <div className="approval-result-entry">
       <p className="approval-result-label">{props.label}</p>
@@ -776,7 +803,8 @@ function SearchEntry(props: { label: string; value: string; accent?: boolean; st
         className={[
           "approval-result-entry-value",
           props.accent ? "approval-result-entry-value-accent" : "",
-          props.strong ? "approval-result-entry-value-strong" : ""
+          props.strong ? "approval-result-entry-value-strong" : "",
+          props.mono ? "approval-result-entry-value-mono" : ""
         ]
           .filter(Boolean)
           .join(" ")}
@@ -791,14 +819,16 @@ function formatDisplayDate(value: string) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("ko-KR");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
 }
 
 function formatValidityRange(validFrom: string, validTo: string) {
   return `${formatDisplayDate(validFrom)} - ${formatDisplayDate(validTo)}`;
 }
 
-function shortenMiddle(value: string, head = 10, tail = 6) {
-  if (!value || value.length <= head + tail + 3) return value || "-";
-  return `${value.slice(0, head)}...${value.slice(-tail)}`;
+function normalizeExternalLabel(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
