@@ -1179,7 +1179,6 @@ body {
 }
 
 .domain-owner-chip {
-  justify-self: end;
   display: inline-flex;
   align-items: center;
   min-height: 27px;
@@ -1189,6 +1188,14 @@ body {
   color: #087443;
   font-size: 11px;
   font-weight: 700;
+}
+
+.domain-owner-chip-row {
+  justify-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .domain-submit-button {
@@ -1206,6 +1213,106 @@ body {
 .domain-submit-button:disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+.domain-success-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 24, 40, 0.32);
+}
+
+.domain-success-popup {
+  width: min(360px, calc(100vw - 48px));
+  display: grid;
+  gap: 14px;
+  padding: 24px 24px 20px;
+  border: 1px solid rgba(208, 213, 221, 0.8);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 28px 64px rgba(16, 24, 40, 0.16);
+}
+
+.domain-success-popup-title {
+  margin: 0;
+  color: #101828;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.domain-success-popup-copy {
+  margin: 0;
+  color: #475467;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.domain-success-popup-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: #3859f5;
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.txn-success-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 24, 40, 0.32);
+}
+
+.txn-success-popup {
+  width: min(360px, calc(100vw - 48px));
+  display: grid;
+  gap: 14px;
+  padding: 24px 24px 20px;
+  border: 1px solid rgba(208, 213, 221, 0.8);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 28px 64px rgba(16, 24, 40, 0.16);
+}
+
+.txn-success-popup-title {
+  margin: 0;
+  color: #101828;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.txn-success-popup-copy {
+  margin: 0;
+  color: #475467;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.txn-success-popup-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: #3859f5;
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .domain-side-stack {
@@ -2357,6 +2464,92 @@ body {
   border: 1px solid #e4eaf2;
   border-radius: 12px;
   background: #ffffff;
+}
+
+.dashboard-registered-domains-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid #e4eaf2;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.dashboard-registered-domains-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-registered-domains-title {
+  margin: 0;
+  color: #101828;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dashboard-registered-domains-meta {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dashboard-registered-domains-empty {
+  display: grid;
+  place-items: center;
+  min-height: 74px;
+  border: 1px dashed #d0d5dd;
+  border-radius: 12px;
+  color: #667085;
+  font-size: 13px;
+  text-align: center;
+}
+
+.dashboard-registered-domains-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dashboard-registered-domain-chip {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  padding: 12px 14px;
+  border: 1px solid #e4eaf2;
+  border-radius: 12px;
+  background: #f8faff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.dashboard-registered-domain-chip:hover {
+  border-color: #c7d7fe;
+  box-shadow: 0 8px 24px rgba(56, 89, 245, 0.08);
+  transform: translateY(-1px);
+}
+
+.dashboard-registered-domain-chip.active {
+  border-color: #3859f5;
+  background: #eef2ff;
+}
+
+.dashboard-registered-domain-name {
+  color: #101828;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-registered-domain-hash {
+  color: #3859f5;
+  font-family: "Roboto Mono", "SF Mono", "Menlo", monospace;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .dashboard-search-label {

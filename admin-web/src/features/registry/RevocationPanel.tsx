@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Search } from "lucide-react";
 import type { Abi } from "viem";
-import { useAccount, useReadContract, useReadContracts, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useReadContract,
+  useReadContracts,
+  useWaitForTransactionReceipt,
+  useWriteContract
+} from "wagmi";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
 import { deriveDomainHash, normalizeDomain } from "../../lib/domain/hash";
 import type { CertificateStatusView } from "../../types/admin";
@@ -23,6 +29,8 @@ export function RevocationPanel() {
   const [selectedCertHash, setSelectedCertHash] = useState<`0x${string}` | "">("");
   const [memo, setMemo] = useState("");
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [submittedHash, setSubmittedHash] = useState<`0x${string}` | undefined>();
+  const [showRevocationSuccess, setShowRevocationSuccess] = useState(false);
 
   const normalizedInput = useMemo(() => normalizeDomain(domainInput), [domainInput]);
   const normalizedDomain = useMemo(() => normalizeDomain(searchedDomain), [searchedDomain]);
@@ -109,6 +117,12 @@ export function RevocationPanel() {
   const hasError = Boolean(ownerQuery.error || approvedHashesQuery.error || statusesQuery.error);
   const isLoading =
     ownerQuery.isLoading || approvedHashesQuery.isLoading || statusesQuery.isLoading;
+  const revocationReceiptQuery = useWaitForTransactionReceipt({
+    hash: submittedHash,
+    query: {
+      enabled: Boolean(submittedHash)
+    }
+  });
 
   useEffect(() => {
     if (!selectedCertHash) return;
@@ -122,12 +136,15 @@ export function RevocationPanel() {
 
     if (!selectedRow || !ownerMatches) return;
 
-    await writeContractAsync({
+    setShowRevocationSuccess(false);
+
+    const hash = await writeContractAsync({
       address: registryAddress,
       abi: registryAbi,
       functionName: "revokeCertificate",
       args: [selectedRow.domainHash, selectedRow.certHash, memo]
     });
+    setSubmittedHash(hash);
   }
 
   function handleSearch() {
@@ -149,6 +166,13 @@ export function RevocationPanel() {
       setCopiedAddress(false);
     }
   }
+
+  useEffect(() => {
+    if (revocationReceiptQuery.isSuccess) {
+      setShowRevocationSuccess(true);
+      setSubmittedHash(undefined);
+    }
+  }, [revocationReceiptQuery.isSuccess]);
 
   return (
     <section className="revocation-screen">
@@ -320,13 +344,43 @@ export function RevocationPanel() {
 
           <button
             className="revocation-submit-button"
-            disabled={isPending || !selectedRow || !ownerMatches}
+            disabled={isPending || revocationReceiptQuery.isLoading || !selectedRow || !ownerMatches}
             type="submit"
           >
-            {isPending ? "인증 취소 중..." : "인증 취소 실행"}
+            {isPending
+              ? "인증 취소 중..."
+              : revocationReceiptQuery.isLoading
+                ? "취소 확인 중..."
+                : "인증 취소 실행"}
           </button>
         </section>
       </form>
+
+      {showRevocationSuccess && (
+        <div className="txn-success-popup-backdrop" role="presentation">
+          <div
+            className="txn-success-popup"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="revocation-success-title"
+            aria-describedby="revocation-success-copy"
+          >
+            <h2 id="revocation-success-title" className="txn-success-popup-title">
+              인증 취소 완료
+            </h2>
+            <p id="revocation-success-copy" className="txn-success-popup-copy">
+              인증 취소가 완료됐습니다.
+            </p>
+            <button
+              type="button"
+              className="txn-success-popup-button"
+              onClick={() => setShowRevocationSuccess(false)}
+            >
+              완료
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

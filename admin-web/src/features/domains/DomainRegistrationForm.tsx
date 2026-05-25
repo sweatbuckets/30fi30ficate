@@ -1,5 +1,10 @@
-import { useState } from "react";
-import { useAccount, useWriteContract } from "wagmi";
+import { useEffect, useState } from "react";
+import {
+  useAccount,
+  useReadContract,
+  useWaitForTransactionReceipt,
+  useWriteContract
+} from "wagmi";
 import { deriveDomainHash, normalizeDomain } from "../../lib/domain/hash";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
 import type { DomainFormState } from "../../types/admin";
@@ -9,6 +14,8 @@ const initialState: DomainFormState = {
   ownerAddress: ""
 };
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
 export function DomainRegistrationForm() {
   const { address } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
@@ -16,15 +23,63 @@ export function DomainRegistrationForm() {
     ...initialState,
     ownerAddress: address ?? ""
   });
+  const [submittedRegistrationKey, setSubmittedRegistrationKey] = useState("");
+  const [submittedHash, setSubmittedHash] = useState<`0x${string}` | undefined>();
+  const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
 
   const normalizedDomain = normalizeDomain(state.domain);
   const domainHash = normalizedDomain
     ? deriveDomainHash(registryChainId, normalizedDomain)
     : "";
+  const ownerQuery = useReadContract({
+    address: registryAddress,
+    abi: registryAbi,
+    functionName: "getDomainOwner",
+    args: domainHash ? [domainHash as `0x${string}`] : undefined,
+    query: {
+      enabled: Boolean(domainHash)
+    }
+  });
+  const registrationKey = `${normalizedDomain}|${domainHash}|${state.ownerAddress.trim().toLowerCase()}`;
+  const receiptQuery = useWaitForTransactionReceipt({
+    hash: submittedHash,
+    query: {
+      enabled: Boolean(submittedHash)
+    }
+  });
   const ownerMatches =
     Boolean(address) &&
     Boolean(state.ownerAddress) &&
     (address?.toLowerCase() ?? "") === state.ownerAddress.toLowerCase();
+  const registeredOwnerAddress =
+    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[0] === "string"
+      ? ownerQuery.data[0]
+      : ZERO_ADDRESS;
+  const isAlreadyRegistered =
+    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[1] === "boolean"
+      ? ownerQuery.data[1]
+      : false;
+  const isRegistrationLocked =
+    Boolean(registrationKey) && submittedRegistrationKey === registrationKey;
+  const isSubmitDisabled =
+    isPending || receiptQuery.isLoading || !domainHash || isRegistrationLocked || isAlreadyRegistered;
+  const submitLabel = isPending
+    ? "등록 중..."
+    : receiptQuery.isLoading
+      ? "등록 확인 중..."
+    : isAlreadyRegistered
+      ? "이미 등록된 도메인입니다"
+      : isRegistrationLocked
+        ? "서명 완료"
+        : "도메인 오너 등록";
+
+  useEffect(() => {
+    if (receiptQuery.isSuccess) {
+      setSubmittedRegistrationKey(registrationKey);
+      setShowRegistrationSuccess(true);
+      setSubmittedHash(undefined);
+    }
+  }, [receiptQuery.isSuccess, registrationKey]);
 
   function shortenAddress(value?: string) {
     if (!value) {
@@ -37,12 +92,15 @@ export function DomainRegistrationForm() {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    await writeContractAsync({
+    setShowRegistrationSuccess(false);
+
+    const hash = await writeContractAsync({
       address: registryAddress,
       abi: registryAbi,
       functionName: "registerDomain",
       args: [normalizedDomain, domainHash as `0x${string}`, state.ownerAddress as `0x${string}`]
     });
+    setSubmittedHash(hash);
   }
 
   return (
@@ -57,8 +115,7 @@ export function DomainRegistrationForm() {
       <div className="domain-screen-grid">
         <form className="domain-card domain-form-card" onSubmit={onSubmit}>
           <div className="domain-card-copy">
-            <h2 className="domain-card-title">Register a domain</h2>
-            <p className="domain-card-kicker">WRITE · registerDomain()</p>
+            <h2 className="domain-card-title">도메인 등록</h2>
           </div>
 
           <div className="domain-field">
@@ -96,13 +153,31 @@ export function DomainRegistrationForm() {
               <span className="domain-preview-value mono">{state.ownerAddress || "-"}</span>
             </div>
 
-            {ownerMatches && (
-              <span className="domain-owner-chip">OWNER = CONNECTED WALLET</span>
+            {isAlreadyRegistered && (
+              <div className="domain-preview-row">
+                <span className="domain-preview-label">registered owner</span>
+                <span className="domain-preview-value mono">{registeredOwnerAddress}</span>
+              </div>
+            )}
+
+            {(ownerMatches || domainHash) && (
+              <div className="domain-owner-chip-row">
+                {ownerMatches && (
+                  <span className="domain-owner-chip">OWNER = CONNECTED WALLET</span>
+                )}
+                {domainHash && !isAlreadyRegistered && (
+                  <span className="domain-owner-chip">
+                    {ownerQuery.isLoading
+                      ? "CHECKING ON-CHAIN..."
+                      : "READY TO REGISTER"}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
-          <button className="domain-submit-button" disabled={isPending || !domainHash}>
-            {isPending ? "등록 중..." : "도메인 오너 등록"}
+          <button className="domain-submit-button" disabled={isSubmitDisabled}>
+            {submitLabel}
           </button>
         </form>
 
@@ -119,9 +194,6 @@ export function DomainRegistrationForm() {
 
               <span className="domain-summary-label">Caller</span>
               <span className="domain-summary-value mono">{shortenAddress(address)}</span>
-
-              <span className="domain-summary-label">Function</span>
-              <span className="domain-summary-value">registerDomain()</span>
             </div>
           </article>
 
@@ -134,6 +206,32 @@ export function DomainRegistrationForm() {
           </article>
         </div>
       </div>
+
+      {showRegistrationSuccess && (
+        <div className="domain-success-popup-backdrop" role="presentation">
+          <div
+            className="domain-success-popup"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="domain-success-title"
+            aria-describedby="domain-success-copy"
+          >
+            <h2 id="domain-success-title" className="domain-success-popup-title">
+              등록 완료
+            </h2>
+            <p id="domain-success-copy" className="domain-success-popup-copy">
+              등록이 완료됐습니다.
+            </p>
+            <button
+              type="button"
+              className="domain-success-popup-button"
+              onClick={() => setShowRegistrationSuccess(false)}
+            >
+              완료
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Copy, Search } from "lucide-react";
-import type { Abi } from "viem";
-import { useAccount, useReadContract, useReadContracts } from "wagmi";
+import type { Abi, Address } from "viem";
+import { useAccount, usePublicClient, useReadContract, useReadContracts } from "wagmi";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
+import { fetchRegisteredDomainsForAddress } from "../../lib/chain/registered-domains";
 import { deriveDomainHash, normalizeDomain } from "../../lib/domain/hash";
 import type { CertificateStatusView } from "../../types/admin";
 
@@ -17,13 +18,22 @@ type DashboardRow = {
   expiringSoon: boolean;
 };
 
+type RegisteredDomainEntry = {
+  domainHash: string;
+  domain: string;
+};
+
 export function CertificateDashboard() {
   const { address } = useAccount();
+  const publicClient = usePublicClient();
   const [domainInput, setDomainInput] = useState("");
   const [searchedDomain, setSearchedDomain] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedCertHash, setExpandedCertHash] = useState<`0x${string}` | "">("");
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [registeredDomainCount, setRegisteredDomainCount] = useState(0);
+  const [registeredDomainCountLoading, setRegisteredDomainCountLoading] = useState(false);
+  const [registeredDomains, setRegisteredDomains] = useState<RegisteredDomainEntry[]>([]);
 
   const normalizedInput = useMemo(() => normalizeDomain(domainInput), [domainInput]);
   const normalizedDomain = useMemo(() => normalizeDomain(searchedDomain), [searchedDomain]);
@@ -55,8 +65,13 @@ export function CertificateDashboard() {
     ? (approvedHashesQuery.data as `0x${string}`[])
     : [];
   const ownerAddress =
-    typeof ownerQuery.data === "string" ? ownerQuery.data.toLowerCase() : ZERO_ADDRESS;
-  const hasRegisteredOwner = ownerAddress !== ZERO_ADDRESS;
+    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[0] === "string"
+      ? ownerQuery.data[0].toLowerCase()
+      : ZERO_ADDRESS;
+  const hasRegisteredOwner =
+    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[1] === "boolean"
+      ? ownerQuery.data[1]
+      : false;
 
   const statusContracts = useMemo(
     () =>
@@ -120,6 +135,48 @@ export function CertificateDashboard() {
     }
   }, [expandedCertHash, visibleRows]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRegisteredDomainCount() {
+      if (!publicClient || !address) {
+        setRegisteredDomainCount(0);
+        setRegisteredDomainCountLoading(false);
+        setRegisteredDomains([]);
+        return;
+      }
+
+      setRegisteredDomainCountLoading(true);
+
+      try {
+        const nextRegisteredDomains = await fetchRegisteredDomainsForAddress(
+          publicClient,
+          address as Address
+        );
+
+        if (!cancelled) {
+          setRegisteredDomainCount(nextRegisteredDomains.length);
+          setRegisteredDomains(nextRegisteredDomains);
+        }
+      } catch {
+        if (!cancelled) {
+          setRegisteredDomainCount(0);
+          setRegisteredDomains([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setRegisteredDomainCountLoading(false);
+        }
+      }
+    }
+
+    void loadRegisteredDomainCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, publicClient]);
+
   function handleSearch(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!normalizedInput) return;
@@ -176,14 +233,16 @@ export function CertificateDashboard() {
       <div className="dashboard-metric-grid">
         <SummaryCard
           label="등록 도메인"
-          value={hasRegisteredOwner ? 1 : 0}
+          value={registeredDomainCount}
           tone="primary"
           meta={
-            hasSearchResult
-              ? hasRegisteredOwner
-                ? "owner verified"
-                : "not registered"
-              : "search required"
+            !address
+              ? "wallet required"
+              : registeredDomainCountLoading
+                ? "checking on-chain"
+                : registeredDomainCount > 0
+                  ? `${registeredDomainCount} registered`
+                  : "not registered"
           }
         />
         <SummaryCard
@@ -223,6 +282,44 @@ export function CertificateDashboard() {
           검색
         </button>
       </form>
+
+      <section className="dashboard-registered-domains-card">
+        <div className="dashboard-registered-domains-head">
+          <h2 className="dashboard-registered-domains-title">등록 도메인 목록</h2>
+          <span className="dashboard-registered-domains-meta">
+            {registeredDomainCountLoading
+              ? "불러오는 중"
+              : `${registeredDomains.length} domains`}
+          </span>
+        </div>
+
+        {registeredDomains.length === 0 ? (
+          <div className="dashboard-registered-domains-empty">
+            {address
+              ? "현재 연결된 지갑으로 등록한 도메인이 없습니다."
+              : "지갑을 연결하면 등록 도메인 목록을 확인할 수 있습니다."}
+          </div>
+        ) : (
+          <div className="dashboard-registered-domains-list">
+            {registeredDomains.map((entry) => (
+              <button
+                key={entry.domainHash}
+                className={`dashboard-registered-domain-chip ${normalizedDomain === normalizeDomain(entry.domain) ? "active" : ""}`}
+                onClick={() => {
+                  setDomainInput(entry.domain);
+                  setSearchedDomain(entry.domain);
+                  setCurrentPage(1);
+                  setExpandedCertHash("");
+                }}
+                type="button"
+              >
+                <span className="dashboard-registered-domain-name">{entry.domain}</span>
+                <span className="dashboard-registered-domain-hash">{formatHashPreview(entry.domainHash)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="dashboard-table-card">
         <div className="dashboard-table-head">
