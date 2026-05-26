@@ -40,6 +40,8 @@ export function buildRpcFailureResult(
     issuer: certificate?.issuer,
     subject: certificate?.subject,
     serialNumber: certificate?.serialNumber,
+    validFrom: certificate?.validFrom,
+    validTo: certificate?.validTo,
     certificateChain: certificate?.chain,
     status: "RPCFailure",
     message: "온체인 검증 상태를 확인할 수 없습니다.",
@@ -96,6 +98,8 @@ export function buildVerificationResult(
     issuer: certificate.issuer,
     subject: certificate.subject,
     serialNumber: certificate.serialNumber,
+    validFrom: certificate.validFrom,
+    validTo: certificate.validTo,
     certificateChain: certificate.chain,
     source: "runtime_tls" as const,
     evidence: {
