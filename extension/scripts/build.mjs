@@ -11,6 +11,7 @@ async function ensureDistStructure() {
   await rm(distDir, { recursive: true, force: true });
   await mkdir(path.join(distDir, "background"), { recursive: true });
   await mkdir(path.join(distDir, "popup"), { recursive: true });
+  await mkdir(path.join(distDir, "assets", "icons"), { recursive: true });
 }
 
 async function bundleEntries() {
@@ -45,6 +46,10 @@ async function copyStaticAssets() {
   await cp(
     path.join(rootDir, "src", "popup", "styles.css"),
     path.join(distDir, "popup", "styles.css")
+  );
+  await cp(
+    path.join(rootDir, "assets", "icons", "30ficate_lock_mark.svg"),
+    path.join(distDir, "assets", "icons", "30ficate_lock_mark.svg")
   );
 }
 

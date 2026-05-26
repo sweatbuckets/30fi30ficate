@@ -72,6 +72,8 @@ export interface VerificationResult {
   issuer?: string;
   subject?: string;
   serialNumber?: string;
+  validFrom?: number;
+  validTo?: number;
   certificateChain?: CertificateChainEntry[];
   source: "runtime_tls";
   evidence: {

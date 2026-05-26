@@ -17,7 +17,7 @@ const statusMessage = document.getElementById("status-message") as HTMLElement;
 const domainValue = document.getElementById("domain-value") as HTMLElement;
 const domainHashValue = document.getElementById("domain-hash-value") as HTMLElement;
 const certHashValue = document.getElementById("cert-hash-value") as HTMLElement;
-const serialNumberValue = document.getElementById("serial-number-value") as HTMLElement;
+const validityValue = document.getElementById("validity-value") as HTMLElement;
 const checkedAtValue = document.getElementById("checked-at-value") as HTMLElement;
 const chainList = document.getElementById("chain-list") as HTMLElement;
 const warningBanner = document.getElementById("warning-banner") as HTMLElement;
@@ -73,6 +73,16 @@ function issuedByLabel(nextEntry?: CertificateChainEntry): string {
   }
 
   return `Issued by ${chainRoleLabel(nextEntry.role)}`;
+}
+
+function formatValidity(validFrom?: number, validTo?: number): string {
+  if (!validFrom || !validTo) {
+    return "-";
+  }
+
+  const from = new Date(validFrom).toLocaleDateString("ko-KR");
+  const to = new Date(validTo).toLocaleDateString("ko-KR");
+  return `${from} ~ ${to}`;
 }
 
 function parseDistinguishedName(value: string): Array<{ key: string; value: string }> {
@@ -169,7 +179,7 @@ function renderState(result: VerificationResult | null): void {
     domainValue.textContent = "-";
     domainHashValue.textContent = "-";
     certHashValue.textContent = "-";
-    serialNumberValue.textContent = "-";
+    validityValue.textContent = "-";
     checkedAtValue.textContent = "-";
     renderChain(undefined);
     renderWarning(null);
@@ -184,7 +194,7 @@ function renderState(result: VerificationResult | null): void {
     result.matchedDomain ?? result.normalizedDomain ?? result.hostname;
   domainHashValue.textContent = result.domainHash ?? "-";
   certHashValue.textContent = result.certHash ?? "-";
-  serialNumberValue.textContent = result.serialNumber ?? "-";
+  validityValue.textContent = formatValidity(result.validFrom, result.validTo);
   checkedAtValue.textContent = new Date(result.checkedAt).toLocaleString();
   renderChain(result.certificateChain);
   renderWarning(result);
