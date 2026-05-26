@@ -7,6 +7,8 @@
 !admin-web/**
 !extension/
 !extension/**
+!readme_img/
+!readme_img/**
 
 # Sensitive local env files
 contracts/.env
