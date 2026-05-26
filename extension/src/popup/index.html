@@ -13,7 +13,7 @@
           <img
             alt="30ficate logo"
             class="popup-brand-mark-image"
-            src="../../assets/icons/30ficate_lock_mark.svg"
+            src="../../assets/icons/3030icon.svg"
           />
         </div>
         <div class="popup-brand-copy">
@@ -26,19 +26,18 @@
         <div class="popup-topbar">
           <div class="popup-copy">
             <p class="popup-eyebrow">Active Tab</p>
-            <h1 class="popup-title">온체인 TLS 검증 상태</h1>
+            <h1 class="popup-title">온체인 검증 결과</h1>
             <p class="popup-subtitle">
-              현재 탭의 HTTPS 인증서가 도메인 소유자에게 승인되었는지 확인합니다.
+              현재 탭의 HTTPS 인증서가 온체인 승인된 인증서인지 확인합니다.
             </p>
           </div>
-          <div class="popup-tab-chip">TLS</div>
+          <div class="popup-tab-chip">TLS captured</div>
         </div>
 
         <section id="status-card" class="status-card status-unknown">
           <div class="status-row">
             <span id="status-dot" class="status-dot"></span>
             <div class="status-copy">
-              <p class="status-kicker">Verification Result</p>
               <p id="status-label" class="status-label">Unknown</p>
               <p id="status-message" class="status-message">아직 검증 결과가 없습니다.</p>
             </div>
@@ -59,7 +58,7 @@
           <div class="info-grid">
             <div class="detail detail-domain">
               <span class="label">Domain</span>
-              <span id="domain-value" class="value">-</span>
+              <span id="domain-value" class="value value-domain">-</span>
             </div>
             <div class="detail detail-wide">
               <span class="label">domainHash</span>
@@ -69,13 +68,9 @@
               <span class="label">certHash</span>
               <span id="cert-hash-value" class="value value-accent value-hash mono">-</span>
             </div>
-            <div class="detail">
-              <span class="label">유효기간</span>
-              <span id="validity-value" class="value value-validity">-</span>
-            </div>
           </div>
           <div class="info-card-meta">
-            <span class="info-card-meta-label">Certificate Read Attempt</span>
+            <span class="info-card-meta-label">최근 시도</span>
             <span id="checked-at-value" class="info-card-meta-value">-</span>
           </div>
         </section>
