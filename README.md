@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./extension/assets/icons/30ficate_icon.png" alt="30ficate logo" width="180" />
+  <img src="./extension/assets/icons/30ficate_lock_mark.svg" alt="30ficate logo" width="180" />
 </p>
 
 <h1 align="center">30ficate</h1>
