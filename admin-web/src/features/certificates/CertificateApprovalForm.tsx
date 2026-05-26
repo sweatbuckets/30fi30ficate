@@ -1,8 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { RefreshCw, Search, SearchCheck, X } from "lucide-react";
-import { useAccount, useWriteContract } from "wagmi";
+import type { Address } from "viem";
+import {
+  useAccount,
+  usePublicClient,
+  useReadContract,
+  useWaitForTransactionReceipt,
+  useWriteContract
+} from "wagmi";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
+import { fetchRegisteredDomainsForAddress } from "../../lib/chain/registered-domains";
 import {
   buildDomainCandidates,
   deriveDomainHash,
@@ -10,7 +18,11 @@ import {
 } from "../../lib/domain/hash";
 import { querySslmate } from "../../lib/ct-api/sslmate";
 import { normalizeGroupedSslmateEntries } from "../../lib/ct-api/normalize";
-import type { ApprovalFormState, CrtSearchResultItem } from "../../types/admin";
+import type {
+  ApprovalFormState,
+  CertificateStatusView,
+  CrtSearchResultItem
+} from "../../types/admin";
 
 const initialState: ApprovalFormState = {
   domain: "",
@@ -26,6 +38,7 @@ const initialState: ApprovalFormState = {
 const resultsPerPage = 20;
 
 type SearchResultTab = "active" | "upcoming";
+type SearchResultsSource = "manual" | "registered-domains";
 
 function normalizeCertHashInput(value: string): string {
   const compact = value.trim().toLowerCase();
@@ -105,8 +118,36 @@ function mergeSearchResults(items: CrtSearchResultItem[]): CrtSearchResultItem[]
   return Array.from(merged.values());
 }
 
+function resolveApprovalDomain(
+  item: CrtSearchResultItem,
+  registeredDomains: string[],
+  fallbackDomain: string
+) {
+  const normalizedRegisteredDomains = registeredDomains
+    .map((domain) => normalizeDomain(domain))
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+  const normalizedIdentities = item.identities
+    .map((identity) => normalizeDomain(identity.replace(/^\*\./, "")))
+    .filter(Boolean);
+
+  for (const registeredDomain of normalizedRegisteredDomains) {
+    if (
+      normalizedIdentities.some(
+        (identity) =>
+          identity === registeredDomain || identity.endsWith(`.${registeredDomain}`)
+      )
+    ) {
+      return registeredDomain;
+    }
+  }
+
+  return normalizeDomain(fallbackDomain || item.domain);
+}
+
 export function CertificateApprovalForm() {
   const { address } = useAccount();
+  const publicClient = usePublicClient();
   const { writeContractAsync, isPending } = useWriteContract();
   const [state, setState] = useState<ApprovalFormState>(initialState);
   const [selectedSearchResult, setSelectedSearchResult] = useState<CrtSearchResultItem | null>(null);
@@ -117,10 +158,16 @@ export function CertificateApprovalForm() {
   const [searchCertHash, setSearchCertHash] = useState("");
   const [isAdvancedSearchOpen, setIsAdvancedSearchOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isDefaultLoading, setIsDefaultLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [resultsPage, setResultsPage] = useState(1);
   const [activeResultsTab, setActiveResultsTab] = useState<SearchResultTab>("active");
+  const [searchResultsSource, setSearchResultsSource] = useState<SearchResultsSource>("manual");
+  const [registeredDomains, setRegisteredDomains] = useState<string[]>([]);
+  const [submittedHash, setSubmittedHash] = useState<`0x${string}` | undefined>();
+  const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
+  const [isApprovalSubmitting, setIsApprovalSubmitting] = useState(false);
 
   const normalizedDomain = useMemo(() => normalizeDomain(state.domain), [state.domain]);
   const normalizedSearchDomain = useMemo(() => normalizeDomain(searchDomain), [searchDomain]);
@@ -139,6 +186,18 @@ export function CertificateApprovalForm() {
     () => normalizeCertHashInput(searchCertHash),
     [searchCertHash]
   );
+  const selectedCertStatusQuery = useReadContract({
+    address: registryAddress,
+    abi: registryAbi,
+    functionName: "getCertificateStatus",
+    args:
+      domainHash && state.certHash
+        ? [domainHash as `0x${string}`, state.certHash as `0x${string}`]
+        : undefined,
+    query: {
+      enabled: Boolean(domainHash && state.certHash)
+    }
+  });
   const isApprovalReady = Boolean(
     state.domain ||
       state.certHash ||
@@ -191,52 +250,101 @@ export function CertificateApprovalForm() {
         selectedSearchResult.reviewState === "Needs Review" ||
         !selectedSearchResult.exactMatch)
   );
+  const resultSourceDescription =
+    searchResultsSource === "registered-domains" && !normalizedSearchDomain
+      ? isDefaultLoading
+        ? "등록 도메인 기준 기본 결과를 불러오는 중입니다."
+        : registeredDomains.length > 0
+        ? `내 주소로 등록한 ${registeredDomains.length}개 도메인의 기본 검색 결과`
+        : "내 주소로 등록한 도메인이 없습니다."
+      : searchResults.length === 0
+        ? "검색 결과가 없습니다."
+        : `${visibleResults.length}개 결과`;
+  const canTriggerSearch = Boolean(normalizedSearchDomain || registeredDomains.length > 0);
+  const approvalReceiptQuery = useWaitForTransactionReceipt({
+    hash: submittedHash,
+    query: {
+      enabled: Boolean(submittedHash)
+    }
+  });
+  const selectedOnchainStatus = selectedCertStatusQuery.data as CertificateStatusView | undefined;
+  const isAlreadyApproved = Boolean(
+    selectedOnchainStatus?.approved && !selectedOnchainStatus?.revoked
+  );
+  const isApprovalLocked = isApprovalSubmitting || isPending || approvalReceiptQuery.isLoading;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    await writeContractAsync({
-      address: registryAddress,
-      abi: registryAbi,
-      functionName: "approveCertificate",
-      args: [
-        domainHash as `0x${string}`,
-        state.certHash as `0x${string}`,
-        state.issuer,
-        state.subject,
-        state.serialNumber,
-        BigInt(state.validFrom || "0"),
-        BigInt(state.validTo || "0"),
-        "SHA-256",
-        state.memo
-      ]
-    });
+    setShowApprovalSuccess(false);
+    setIsApprovalSubmitting(true);
+
+    try {
+      const hash = await writeContractAsync({
+        address: registryAddress,
+        abi: registryAbi,
+        functionName: "approveCertificate",
+        args: [
+          domainHash as `0x${string}`,
+          state.certHash as `0x${string}`,
+          state.issuer,
+          state.subject,
+          state.serialNumber,
+          BigInt(state.validFrom || "0"),
+          BigInt(state.validTo || "0"),
+          "SHA-256",
+          state.memo
+        ]
+      });
+      setSubmittedHash(hash);
+    } catch {
+      setIsApprovalSubmitting(false);
+      return;
+    }
   }
 
   async function handleSearch() {
-    if (!normalizedSearchDomain) return;
+    if (!normalizedSearchDomain) {
+      if (!isSearchModalOpen || registeredDomains.length === 0) return;
+
+      setIsSearching(true);
+      setSearchError(null);
+
+      try {
+        const normalizedResults = await searchCertificates(
+          registeredDomains.map((domain) => ({
+            queryDomain: domain,
+            normalizeScope: [domain]
+          }))
+        );
+        setSearchResults(normalizedResults);
+        setSearchResultsSource("registered-domains");
+        setActiveResultsTab("active");
+        setResultsPage(1);
+      } catch (caught) {
+        setSearchError(
+          caught instanceof Error
+            ? caught.message
+            : "기본 인증서 검색 결과를 불러오지 못했습니다."
+        );
+      } finally {
+        setIsSearching(false);
+      }
+      return;
+    }
 
     setIsSearching(true);
     setSearchError(null);
 
     try {
-      const groupedEntries = await Promise.all(
-        searchDomainCandidates.map((domainCandidate) =>
-          querySslmate(domainCandidate, {
-            includeSubdomains,
-            matchWildcards,
-            certHash: normalizedSearchCertHash || undefined
-          })
-        )
-      );
-      const normalizedResults = mergeSearchResults(
-        groupedEntries
-          .flatMap((entries) =>
-            normalizeGroupedSslmateEntries(searchDomainCandidates, entries)
-          )
-          .filter(isSearchResultUsable)
+      const normalizedResults = await searchCertificates(
+        searchDomainCandidates.map((domainCandidate) => ({
+          queryDomain: domainCandidate,
+          normalizeScope: searchDomainCandidates
+        }))
       );
       setSearchResults(normalizedResults);
+      setSearchResultsSource("manual");
       setActiveResultsTab("active");
       setResultsPage(1);
     } catch (caught) {
@@ -250,11 +358,103 @@ export function CertificateApprovalForm() {
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDefaultSearchResults() {
+      if (!isSearchModalOpen || !publicClient || !address || searchDomain.trim()) {
+        return;
+      }
+
+      if (searchResultsSource === "registered-domains" && searchResults.length > 0) {
+        return;
+      }
+
+      setIsDefaultLoading(true);
+      setSearchError(null);
+
+      try {
+        const nextRegisteredDomains = (
+          await fetchRegisteredDomainsForAddress(publicClient, address as Address)
+        )
+          .map((entry) => entry.domain)
+          .filter(Boolean);
+        if (cancelled) return;
+
+        setRegisteredDomains(nextRegisteredDomains);
+
+        if (nextRegisteredDomains.length === 0) {
+          setSearchResults([]);
+          setSearchResultsSource("registered-domains");
+          setActiveResultsTab("active");
+          setResultsPage(1);
+          return;
+        }
+
+        const normalizedResults = await searchCertificates(
+          nextRegisteredDomains.map((domain) => ({
+            queryDomain: domain,
+            normalizeScope: [domain]
+          }))
+        );
+        if (cancelled) return;
+
+        setSearchResults(normalizedResults);
+        setSearchResultsSource("registered-domains");
+        setActiveResultsTab("active");
+        setResultsPage(1);
+      } catch (caught) {
+        if (cancelled) return;
+        setSearchError(
+          caught instanceof Error
+            ? caught.message
+            : "기본 인증서 검색 결과를 불러오지 못했습니다."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsDefaultLoading(false);
+        }
+      }
+    }
+
+    void loadDefaultSearchResults();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    address,
+    includeSubdomains,
+    isSearchModalOpen,
+    matchWildcards,
+    normalizedSearchCertHash,
+    publicClient,
+    searchResults.length,
+    searchResultsSource,
+    searchDomain
+  ]);
+
+  useEffect(() => {
+    if (approvalReceiptQuery.isSuccess) {
+      setShowApprovalSuccess(true);
+      setSubmittedHash(undefined);
+      setIsApprovalSubmitting(false);
+    }
+  }, [approvalReceiptQuery.isSuccess]);
+
+  useEffect(() => {
+    if (approvalReceiptQuery.isError) {
+      setIsApprovalSubmitting(false);
+      setSubmittedHash(undefined);
+    }
+  }, [approvalReceiptQuery.isError]);
+
   function selectSearchResult(item: CrtSearchResultItem) {
+    const resolvedDomain = resolveApprovalDomain(item, registeredDomains, normalizedSearchDomain);
     setSelectedSearchResult(item);
     setState((current) => ({
       ...current,
-      domain: item.domain,
+      domain: resolvedDomain,
       certHash: item.certHash,
       issuer: item.issuer,
       subject: item.subject,
@@ -446,9 +646,23 @@ export function CertificateApprovalForm() {
 
               <button
                 className="approval-submit-button"
-                disabled={isPending || !domainHash || !state.certHash}
+                disabled={
+                  isApprovalLocked ||
+                  selectedCertStatusQuery.isLoading ||
+                  isAlreadyApproved ||
+                  !domainHash ||
+                  !state.certHash
+                }
               >
-                {isPending ? "인증서 승인 중..." : "인증서 승인"}
+                {isApprovalSubmitting || isPending
+                  ? "인증서 승인 중..."
+                  : approvalReceiptQuery.isLoading
+                    ? "승인 확인 중..."
+                    : selectedCertStatusQuery.isLoading
+                      ? "온체인 상태 확인 중..."
+                      : isAlreadyApproved
+                        ? "이미 승인된 인증서입니다"
+                        : "인증서 승인"}
               </button>
             </div>
           </form>
@@ -487,7 +701,7 @@ export function CertificateApprovalForm() {
                 </div>
                 <button
                   className="approval-modal-search-button"
-                  disabled={isSearching || !normalizedSearchDomain}
+                  disabled={isSearching || !canTriggerSearch}
                   onClick={handleSearch}
                   type="button"
                 >
@@ -590,9 +804,7 @@ export function CertificateApprovalForm() {
                 <div className="approval-modal-results-copy">
                   <p className="approval-modal-results-title">검색 결과</p>
                   <p className="approval-modal-results-meta">
-                    {searchResults.length === 0
-                      ? "검색 결과가 없습니다."
-                      : `${visibleResults.length}개 결과`}
+                    {resultSourceDescription}
                   </p>
                 </div>
                 <div className="approval-modal-pagination">
@@ -621,6 +833,13 @@ export function CertificateApprovalForm() {
               {normalizedSearchDomain && (
                 <div className="approval-domain-candidates">{searchDomainCandidates.join(" / ")}</div>
               )}
+              {!normalizedSearchDomain &&
+                searchResultsSource === "registered-domains" &&
+                registeredDomains.length > 0 && (
+                  <div className="approval-domain-candidates">
+                    {registeredDomains.join(" / ")}
+                  </div>
+                )}
 
               <div className="approval-tab-row">
                 <button
@@ -650,7 +869,13 @@ export function CertificateApprovalForm() {
               <div className="approval-results-grid">
                 {visibleResults.length === 0 ? (
                   <div className="approval-results-empty">
-                    {searchResults.length === 0
+                    {searchResultsSource === "registered-domains" && !normalizedSearchDomain
+                      ? isDefaultLoading
+                        ? "등록 도메인 기준 기본 검색 결과를 불러오는 중입니다."
+                        : registeredDomains.length === 0
+                        ? "내 주소로 등록한 도메인이 없어 기본 검색 결과를 표시할 수 없습니다."
+                        : "등록한 도메인 기준으로 표시할 기본 검색 결과가 없습니다."
+                      : searchResults.length === 0
                       ? "domain을 입력하고 인증서 검색을 실행하세요."
                       : normalizedSearchCertHash
                         ? "입력한 certHash와 정확히 일치하는 검색 결과가 없습니다."
@@ -678,11 +903,61 @@ export function CertificateApprovalForm() {
           </div>,
           document.body
         )}
+
+      {showApprovalSuccess &&
+        createPortal(
+          <div className="txn-success-popup-backdrop" role="presentation">
+            <div
+              className="txn-success-popup"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="approval-success-title"
+              aria-describedby="approval-success-copy"
+            >
+              <h2 id="approval-success-title" className="txn-success-popup-title">
+                승인 완료
+              </h2>
+              <p id="approval-success-copy" className="txn-success-popup-copy">
+                인증서 승인이 완료됐습니다.
+              </p>
+              <button
+                type="button"
+                className="txn-success-popup-button"
+                onClick={() => setShowApprovalSuccess(false)}
+              >
+                완료
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </section>
   );
 
   function update<Key extends keyof ApprovalFormState>(key: Key, value: ApprovalFormState[Key]) {
     setState((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function searchCertificates(
+    requests: Array<{ queryDomain: string; normalizeScope: string[] }>
+  ) {
+    const groupedEntries = await Promise.all(
+      requests.map(({ queryDomain }) =>
+        querySslmate(queryDomain, {
+          includeSubdomains,
+          matchWildcards,
+          certHash: normalizedSearchCertHash || undefined
+        })
+      )
+    );
+
+    return mergeSearchResults(
+      groupedEntries
+        .flatMap((entries, index) =>
+          normalizeGroupedSslmateEntries(requests[index].normalizeScope, entries)
+        )
+        .filter(isSearchResultUsable)
+    );
   }
 }
 
