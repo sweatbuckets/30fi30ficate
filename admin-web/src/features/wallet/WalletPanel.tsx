@@ -25,7 +25,7 @@ export function WalletPanel(props: { compact?: boolean }) {
           <p className="wallet-sidebar-section-title">ON-CHAIN CONTRACT</p>
           <span className="wallet-sidebar-network-pill">Sepolia Network</span>
           <p className="wallet-sidebar-contract-name">CertificateRegistry</p>
-          <p className="wallet-sidebar-contract-address mono">{shortenAddress(registryAddress)}</p>
+          <p className="wallet-sidebar-contract-address mono">{registryAddress}</p>
         </div>
 
         {address ? (
