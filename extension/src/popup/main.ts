@@ -14,10 +14,10 @@ import type {
 const statusCard = document.getElementById("status-card") as HTMLElement;
 const statusLabel = document.getElementById("status-label") as HTMLElement;
 const statusMessage = document.getElementById("status-message") as HTMLElement;
+const popupTabChip = document.querySelector(".popup-tab-chip") as HTMLElement;
 const domainValue = document.getElementById("domain-value") as HTMLElement;
 const domainHashValue = document.getElementById("domain-hash-value") as HTMLElement;
 const certHashValue = document.getElementById("cert-hash-value") as HTMLElement;
-const validityValue = document.getElementById("validity-value") as HTMLElement;
 const checkedAtValue = document.getElementById("checked-at-value") as HTMLElement;
 const chainList = document.getElementById("chain-list") as HTMLElement;
 const warningBanner = document.getElementById("warning-banner") as HTMLElement;
@@ -34,6 +34,14 @@ function shouldShowRecheckButton(result: VerificationResult | null): boolean {
     result.status === "TLSObservationFailure" ||
     result.status === "RPCFailure"
   );
+}
+
+function tlsChipLabel(result: VerificationResult | null): string {
+  if (!result) {
+    return "TLS uncaptured";
+  }
+
+  return result.evidence.tlsObserved ? "TLS captured" : "TLS uncaptured";
 }
 
 function renderWarning(result: VerificationResult | null): void {
@@ -75,14 +83,12 @@ function issuedByLabel(nextEntry?: CertificateChainEntry): string {
   return `Issued by ${chainRoleLabel(nextEntry.role)}`;
 }
 
-function formatValidity(validFrom?: number, validTo?: number): string {
-  if (!validFrom || !validTo) {
+function formatDate(value?: number): string {
+  if (!value) {
     return "-";
   }
 
-  const from = new Date(validFrom).toLocaleDateString("ko-KR");
-  const to = new Date(validTo).toLocaleDateString("ko-KR");
-  return `${from} ~ ${to}`;
+  return new Date(value).toLocaleDateString("ko-KR");
 }
 
 function parseDistinguishedName(value: string): Array<{ key: string; value: string }> {
@@ -134,7 +140,11 @@ function renderDistinguishedNameChips(
   }
 }
 
-function renderChain(chain: CertificateChainEntry[] | undefined): void {
+function renderChain(
+  chain: CertificateChainEntry[] | undefined,
+  validFrom?: number,
+  validTo?: number
+): void {
   chainList.replaceChildren();
 
   if (!chain?.length) {
@@ -164,7 +174,37 @@ function renderChain(chain: CertificateChainEntry[] | undefined): void {
     issuer.className = "chain-issuer";
     issuer.textContent = issuedByLabel(chain[index + 1]);
 
-    card.append(role, subject, issuer);
+    card.append(role, subject);
+
+    if (entry.role === "leaf") {
+      const validity = document.createElement("div");
+      validity.className = "chain-validity";
+
+      const issuedMeta = document.createElement("div");
+      issuedMeta.className = "chain-validity-item";
+      const issuedLabel = document.createElement("span");
+      issuedLabel.className = "chain-validity-label";
+      issuedLabel.textContent = "발급 날짜";
+      const issuedValue = document.createElement("span");
+      issuedValue.className = "chain-validity-value";
+      issuedValue.textContent = formatDate(validFrom);
+      issuedMeta.append(issuedLabel, issuedValue);
+
+      const expiresMeta = document.createElement("div");
+      expiresMeta.className = "chain-validity-item";
+      const expiresLabel = document.createElement("span");
+      expiresLabel.className = "chain-validity-label";
+      expiresLabel.textContent = "만료 날짜";
+      const expiresValue = document.createElement("span");
+      expiresValue.className = "chain-validity-value";
+      expiresValue.textContent = formatDate(validTo);
+      expiresMeta.append(expiresLabel, expiresValue);
+
+      validity.append(issuedMeta, expiresMeta);
+      card.append(validity);
+    }
+
+    card.append(issuer);
     item.append(card);
     chainList.append(item);
   }
@@ -173,13 +213,13 @@ function renderChain(chain: CertificateChainEntry[] | undefined): void {
 function renderState(result: VerificationResult | null): void {
   if (!result) {
     statusCard.className = "status-card status-unknown";
+    popupTabChip.textContent = tlsChipLabel(null);
     statusLabel.textContent = "Unknown";
     statusMessage.textContent =
       "아직 이 탭의 검증 결과가 없습니다. 인증서 다시 읽기를 실행해 주세요.";
     domainValue.textContent = "-";
     domainHashValue.textContent = "-";
     certHashValue.textContent = "-";
-    validityValue.textContent = "-";
     checkedAtValue.textContent = "-";
     renderChain(undefined);
     renderWarning(null);
@@ -188,15 +228,15 @@ function renderState(result: VerificationResult | null): void {
   }
 
   statusCard.className = statusClassName(result.status);
+  popupTabChip.textContent = tlsChipLabel(result);
   statusLabel.textContent = result.status;
   statusMessage.textContent = result.message;
   domainValue.textContent =
     result.matchedDomain ?? result.normalizedDomain ?? result.hostname;
   domainHashValue.textContent = result.domainHash ?? "-";
   certHashValue.textContent = result.certHash ?? "-";
-  validityValue.textContent = formatValidity(result.validFrom, result.validTo);
   checkedAtValue.textContent = new Date(result.checkedAt).toLocaleString();
-  renderChain(result.certificateChain);
+  renderChain(result.certificateChain, result.validFrom, result.validTo);
   renderWarning(result);
   recheckButton.hidden = !shouldShowRecheckButton(result);
 }

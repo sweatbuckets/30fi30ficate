@@ -15,15 +15,15 @@
     "scripts": ["dist/background/index.js"]
   },
   "icons": {
-    "48": "assets/icons/30ficate_icon.png",
-    "96": "assets/icons/30ficate_icon.png"
+    "48": "assets/icons/3030icon.svg",
+    "96": "assets/icons/3030icon.svg"
   },
   "browser_action": {
     "default_title": "30ficate",
     "default_popup": "dist/popup/index.html",
     "default_icon": {
-      "16": "assets/icons/30ficate_icon.png",
-      "32": "assets/icons/30ficate_icon.png"
+      "16": "assets/icons/3030icon.svg",
+      "32": "assets/icons/3030icon.svg"
     }
   },
   "browser_specific_settings": {

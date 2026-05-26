@@ -68,8 +68,8 @@ body {
 
 .popup-brand-mark-image {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
 }
 
@@ -98,16 +98,20 @@ body {
 }
 
 .popup-topbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "copy chip"
+    "copy .";
+  column-gap: 10px;
+  align-items: start;
 }
 
 .popup-copy {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
+  grid-area: copy;
 }
 
 .popup-eyebrow {
@@ -130,25 +134,28 @@ body {
 .popup-subtitle {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
 }
 
 .popup-tab-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 54px;
+  grid-area: chip;
+  min-width: 74px;
   height: 28px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid #d8e0ec;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.88);
   color: var(--blue);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  flex-shrink: 0;
+  letter-spacing: 0.04em;
+  text-align: center;
+  margin-top: 2px;
 }
 
 .status-card,
@@ -174,7 +181,7 @@ body {
 .status-dot {
   width: 16px;
   height: 16px;
-  margin-top: 8px;
+  margin-top: 10px;
   border-radius: 999px;
   background: var(--unknown);
   box-shadow: 0 0 0 7px rgba(125, 140, 161, 0.14);
@@ -185,15 +192,7 @@ body {
   display: grid;
   gap: 4px;
   min-width: 0;
-}
-
-.status-kicker {
-  margin: 0;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  padding-top: 2px;
 }
 
 .status-label {
@@ -247,7 +246,7 @@ body {
 }
 
 .info-card {
-  padding: 16px 16px 18px;
+  padding: 14px 16px 16px;
 }
 
 .info-card-header {
@@ -255,7 +254,7 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .info-card-header h2 {
@@ -277,7 +276,7 @@ body {
 .info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .detail {
@@ -318,6 +317,17 @@ body {
   color: var(--blue);
 }
 
+.value-domain {
+  min-height: 50px;
+  padding: 0 14px;
+  background: #ffffff;
+  border-color: #d5deea;
+  color: #0f1728;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
 .mono {
   font-family: "SF Mono", "Menlo", monospace;
   font-size: 11px;
@@ -332,24 +342,18 @@ body {
   word-break: break-all;
 }
 
-.value-validity {
-  white-space: nowrap;
-  font-size: 11px;
-}
-
 .info-card-meta {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
   margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #eef2f6;
+  padding-top: 6px;
 }
 
 .info-card-meta-label,
 .info-card-meta-value {
-  color: #91a0b5;
+  color: #667085;
   font-size: 10px;
   line-height: 1.4;
 }
@@ -361,7 +365,7 @@ body {
 }
 
 .info-card-meta-value {
-  text-align: right;
+  text-align: left;
 }
 
 .chain-list {
@@ -423,11 +427,42 @@ body {
 }
 
 .chain-issuer {
+  align-self: flex-end;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
   padding-top: 2px;
-  border-top: 1px solid #eef2f6;
+  text-align: right;
+}
+
+.chain-validity {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 2px 0 4px;
+}
+
+.chain-validity-item {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid #eef2f6;
+  border-radius: 10px;
+  background: #f8faff;
+}
+
+.chain-validity-label {
+  color: #667085;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.chain-validity-value {
+  color: #1f3fb9;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .chain-empty {
@@ -467,6 +502,7 @@ body {
 .dn-chip-value {
   color: var(--ink);
   font-size: 11px;
+  font-weight: 600;
   line-height: 1.45;
   word-break: break-word;
 }
