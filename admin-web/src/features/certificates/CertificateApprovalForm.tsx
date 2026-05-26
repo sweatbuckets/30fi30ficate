@@ -118,6 +118,33 @@ function mergeSearchResults(items: CrtSearchResultItem[]): CrtSearchResultItem[]
   return Array.from(merged.values());
 }
 
+function resolveApprovalDomain(
+  item: CrtSearchResultItem,
+  registeredDomains: string[],
+  fallbackDomain: string
+) {
+  const normalizedRegisteredDomains = registeredDomains
+    .map((domain) => normalizeDomain(domain))
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+  const normalizedIdentities = item.identities
+    .map((identity) => normalizeDomain(identity.replace(/^\*\./, "")))
+    .filter(Boolean);
+
+  for (const registeredDomain of normalizedRegisteredDomains) {
+    if (
+      normalizedIdentities.some(
+        (identity) =>
+          identity === registeredDomain || identity.endsWith(`.${registeredDomain}`)
+      )
+    ) {
+      return registeredDomain;
+    }
+  }
+
+  return normalizeDomain(fallbackDomain || item.domain);
+}
+
 export function CertificateApprovalForm() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
@@ -423,10 +450,11 @@ export function CertificateApprovalForm() {
   }, [approvalReceiptQuery.isError]);
 
   function selectSearchResult(item: CrtSearchResultItem) {
+    const resolvedDomain = resolveApprovalDomain(item, registeredDomains, normalizedSearchDomain);
     setSelectedSearchResult(item);
     setState((current) => ({
       ...current,
-      domain: item.domain,
+      domain: resolvedDomain,
       certHash: item.certHash,
       issuer: item.issuer,
       subject: item.subject,

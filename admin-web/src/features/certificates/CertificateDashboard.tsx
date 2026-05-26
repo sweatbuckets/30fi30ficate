@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Copy, Search } from "lucide-react";
 import type { Abi, Address } from "viem";
-import { useAccount, usePublicClient, useReadContract, useReadContracts } from "wagmi";
+import { useAccount, usePublicClient, useReadContracts } from "wagmi";
 import { registryAbi, registryAddress, registryChainId } from "../../lib/chain/contract";
 import { fetchRegisteredDomainsForAddress } from "../../lib/chain/registered-domains";
 import { deriveDomainHash, normalizeDomain } from "../../lib/domain/hash";
@@ -12,6 +12,8 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const EXPIRING_SOON_DAYS = 30;
 
 type DashboardRow = {
+  domain: string;
+  domainHash: `0x${string}`;
   certHash: `0x${string}`;
   displayDomain: string;
   status: CertificateStatusView;
@@ -37,53 +39,73 @@ export function CertificateDashboard() {
 
   const normalizedInput = useMemo(() => normalizeDomain(domainInput), [domainInput]);
   const normalizedDomain = useMemo(() => normalizeDomain(searchedDomain), [searchedDomain]);
-  const domainHash = normalizedDomain
-    ? deriveDomainHash(registryChainId, normalizedDomain)
-    : undefined;
+  const domainHash = normalizedDomain ? deriveDomainHash(registryChainId, normalizedDomain) : undefined;
+  const allDomainSources = useMemo(
+    () =>
+      registeredDomains.map((entry) => ({
+        domain: entry.domain,
+        domainHash: entry.domainHash as `0x${string}`
+      })),
+    [registeredDomains]
+  );
+  const filteredDomainSources = useMemo(
+    () =>
+      searchedDomain
+        ? [
+            {
+              domain: searchedDomain,
+              domainHash: domainHash as `0x${string}`
+            }
+          ]
+        : allDomainSources,
+    [allDomainSources, domainHash, searchedDomain]
+  );
 
-  const ownerQuery = useReadContract({
-    address: registryAddress,
-    abi: registryAbi,
-    functionName: "getDomainOwner",
-    args: domainHash ? [domainHash] : undefined,
+  const approvedHashesContracts = useMemo(
+    () =>
+      allDomainSources.map((entry) => ({
+        address: registryAddress,
+        abi: registryAbi as Abi,
+        functionName: "getApprovedCertificates" as const,
+        args: [entry.domainHash] as const
+      })),
+    [allDomainSources]
+  );
+
+  const approvedHashesQuery = useReadContracts({
+    contracts: approvedHashesContracts,
     query: {
-      enabled: Boolean(domainHash)
+      enabled: approvedHashesContracts.length > 0
     }
   });
 
-  const approvedHashesQuery = useReadContract({
-    address: registryAddress,
-    abi: registryAbi,
-    functionName: "getApprovedCertificates",
-    args: domainHash ? [domainHash] : undefined,
-    query: {
-      enabled: Boolean(domainHash)
-    }
-  });
+  const approvedCertPairs = useMemo(
+    () =>
+      allDomainSources.flatMap((entry, index) => {
+        const result = approvedHashesQuery.data?.[index];
+        const certHashes =
+          result && result.status === "success" && Array.isArray(result.result)
+            ? (result.result as `0x${string}`[])
+            : [];
 
-  const approvedHashes = Array.isArray(approvedHashesQuery.data)
-    ? (approvedHashesQuery.data as `0x${string}`[])
-    : [];
-  const ownerAddress =
-    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[0] === "string"
-      ? ownerQuery.data[0].toLowerCase()
-      : ZERO_ADDRESS;
-  const hasRegisteredOwner =
-    ownerQuery.data && Array.isArray(ownerQuery.data) && typeof ownerQuery.data[1] === "boolean"
-      ? ownerQuery.data[1]
-      : false;
+        return certHashes.map((certHash) => ({
+          domain: entry.domain,
+          domainHash: entry.domainHash,
+          certHash
+        }));
+      }),
+    [allDomainSources, approvedHashesQuery.data]
+  );
 
   const statusContracts = useMemo(
     () =>
-      domainHash
-        ? approvedHashes.map((certHash) => ({
+      approvedCertPairs.map((entry) => ({
             address: registryAddress,
             abi: registryAbi as Abi,
             functionName: "getCertificateStatus" as const,
-            args: [domainHash, certHash] as const
-          }))
-        : [],
-    [approvedHashes, domainHash]
+            args: [entry.domainHash, entry.certHash] as const
+          })),
+    [approvedCertPairs]
   );
 
   const statusesQuery = useReadContracts({
@@ -93,31 +115,43 @@ export function CertificateDashboard() {
     }
   });
 
-  const dashboardRows = useMemo<DashboardRow[]>(
+  const allDashboardRows = useMemo<DashboardRow[]>(
     () =>
-      approvedHashes
-        .map((certHash, index) => {
+      approvedCertPairs
+        .map((entry, index) => {
           const result = statusesQuery.data?.[index];
           if (!result || result.status !== "success") return null;
 
           const status = result.result as CertificateStatusView;
 
           return {
-            certHash,
-            displayDomain: extractDisplayDomain(status.subject, normalizedDomain),
+            domain: entry.domain,
+            domainHash: entry.domainHash,
+            certHash: entry.certHash,
+            displayDomain: extractDisplayDomain(status.subject, entry.domain),
             status,
             expiringSoon: isExpiringSoon(status)
           };
         })
         .filter((entry): entry is DashboardRow => entry !== null),
-    [approvedHashes, normalizedDomain, statusesQuery.data]
+    [approvedCertPairs, statusesQuery.data]
   );
 
-  const approvedCount = dashboardRows.filter(
+  const dashboardRows = useMemo(
+    () =>
+      searchedDomain
+        ? allDashboardRows.filter((row) =>
+            filteredDomainSources.some((entry) => entry.domainHash === row.domainHash)
+          )
+        : allDashboardRows,
+    [allDashboardRows, filteredDomainSources, searchedDomain]
+  );
+
+  const approvedCount = allDashboardRows.filter(
     (entry) => entry.status.approved && !entry.status.revoked
   ).length;
-  const revokedCount = dashboardRows.filter((entry) => entry.status.revoked).length;
-  const expiringSoonCount = dashboardRows.filter((entry) => entry.expiringSoon).length;
+  const revokedCount = allDashboardRows.filter((entry) => entry.status.revoked).length;
+  const expiringSoonCount = allDashboardRows.filter((entry) => entry.expiringSoon).length;
   const totalPages = Math.max(1, Math.ceil(dashboardRows.length / PAGE_SIZE));
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const visibleRows = dashboardRows.slice(pageStart, pageStart + PAGE_SIZE);
@@ -198,10 +232,10 @@ export function CertificateDashboard() {
     }
   }
 
-  const hasSearchResult = Boolean(domainHash);
+  const hasSearchResult = registeredDomains.length > 0;
   const isLoading =
-    ownerQuery.isLoading || approvedHashesQuery.isLoading || statusesQuery.isLoading;
-  const hasError = Boolean(ownerQuery.error || approvedHashesQuery.error || statusesQuery.error);
+    registeredDomainCountLoading || approvedHashesQuery.isLoading || statusesQuery.isLoading;
+  const hasError = Boolean(approvedHashesQuery.error || statusesQuery.error);
   const visibleStart = dashboardRows.length === 0 ? 0 : pageStart + 1;
   const visibleEnd = Math.min(pageStart + visibleRows.length, dashboardRows.length);
 
@@ -247,7 +281,7 @@ export function CertificateDashboard() {
         />
         <SummaryCard
           label="승인 인증서"
-          value={dashboardRows.length}
+          value={allDashboardRows.length}
           tone="success"
           meta={`${approvedCount} active`}
         />
@@ -306,8 +340,11 @@ export function CertificateDashboard() {
                 key={entry.domainHash}
                 className={`dashboard-registered-domain-chip ${normalizedDomain === normalizeDomain(entry.domain) ? "active" : ""}`}
                 onClick={() => {
-                  setDomainInput(entry.domain);
-                  setSearchedDomain(entry.domain);
+                  const nextDomain = normalizeDomain(entry.domain);
+                  const isActive = normalizedDomain === nextDomain;
+
+                  setDomainInput(isActive ? "" : entry.domain);
+                  setSearchedDomain(isActive ? "" : entry.domain);
                   setCurrentPage(1);
                   setExpandedCertHash("");
                 }}
@@ -330,7 +367,7 @@ export function CertificateDashboard() {
           <span>작업</span>
         </div>
 
-        {!hasSearchResult && (
+        {!hasSearchResult && !registeredDomainCountLoading && (
           <div className="dashboard-empty-state">이 지갑에 등록된 승인 인증서가 없습니다.</div>
         )}
 
@@ -353,6 +390,13 @@ export function CertificateDashboard() {
         {hasSearchResult && !isLoading && !hasError && dashboardRows.length > 0 && (
           <>
             <table className="dashboard-table">
+              <colgroup>
+                <col className="dashboard-col-hash" />
+                <col className="dashboard-col-cert" />
+                <col className="dashboard-col-validity" />
+                <col className="dashboard-col-status" />
+                <col className="dashboard-col-action" />
+              </colgroup>
               <tbody>
                 {visibleRows.map((row) => {
                   const expanded = expandedCertHash === row.certHash;
@@ -362,26 +406,26 @@ export function CertificateDashboard() {
                   return (
                     <Fragment key={row.certHash}>
                       <tr className="dashboard-table-row" key={row.certHash}>
-                        <td className="dashboard-hash-cell">
+                        <td className="dashboard-hash-cell dashboard-table-cell">
                           <span className="dashboard-hash-value">
                             {formatHashPreview(row.certHash)}
                           </span>
                         </td>
-                        <td>
+                        <td className="dashboard-table-cell dashboard-cert-column">
                           <div className="dashboard-cert-cell">
                             <strong>{row.displayDomain}</strong>
                             <span>{row.status.issuer || "-"}</span>
                           </div>
                         </td>
-                        <td className="dashboard-date-cell">
+                        <td className="dashboard-date-cell dashboard-table-cell">
                           {formatValidityRange(row.status.validFrom, row.status.validTo)}
                         </td>
-                        <td>
+                        <td className="dashboard-table-cell dashboard-status-column">
                           <span className={`dashboard-status-chip dashboard-status-chip-${statusTone}`}>
                             {statusLabel}
                           </span>
                         </td>
-                        <td>
+                        <td className="dashboard-table-cell dashboard-action-column">
                           <button
                             className="dashboard-row-action"
                             onClick={() =>
@@ -399,7 +443,11 @@ export function CertificateDashboard() {
                           <td colSpan={5}>
                             <div className="dashboard-detail-panel">
                               <DetailCell label="Full certHash" value={row.certHash} mono />
-                              <DetailCell label="domainHash" value={domainHash || "-"} mono />
+                              <DetailCell
+                                label="domainHash"
+                                value={row.domainHash}
+                                mono
+                              />
                               <DetailCell label="Subject" value={row.status.subject || "-"} />
                               <DetailCell
                                 label="Serial Number"

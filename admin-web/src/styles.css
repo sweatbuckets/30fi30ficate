@@ -2611,9 +2611,9 @@ body {
 
 .dashboard-table-head {
   display: grid;
-  grid-template-columns: 1.1fr 1.9fr 1.2fr 0.9fr 0.5fr;
-  gap: 20px;
-  padding: 24px 24px 18px;
+  grid-template-columns: 24% 27% 24% 17% 8%;
+  gap: 0;
+  padding: 24px 16px 18px;
   color: #667085;
   font-size: 12px;
   font-weight: 600;
@@ -2623,28 +2623,57 @@ body {
 .dashboard-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.dashboard-col-hash {
+  width: 24%;
+}
+
+.dashboard-col-cert {
+  width: 27%;
+}
+
+.dashboard-col-validity {
+  width: 24%;
+}
+
+.dashboard-col-status {
+  width: 17%;
+}
+
+.dashboard-col-action {
+  width: 8%;
 }
 
 .dashboard-table-row td {
-  padding: 18px 24px;
+  padding: 18px 16px;
   border-bottom: 1px solid #e4eaf2;
   vertical-align: middle;
 }
 
+.dashboard-table-cell {
+  text-align: left;
+  vertical-align: middle;
+}
+
 .dashboard-hash-cell {
-  width: 1%;
+  vertical-align: middle;
 }
 
 .dashboard-hash-value {
+  display: block;
   color: #6941c6;
   font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .dashboard-cert-cell {
   display: grid;
   gap: 4px;
+  align-content: center;
 }
 
 .dashboard-cert-cell strong {
@@ -2663,7 +2692,19 @@ body {
   color: #101828;
   font-size: 11px;
   font-weight: 500;
-  white-space: nowrap;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.dashboard-status-column,
+.dashboard-action-column {
+  vertical-align: middle;
+}
+
+.dashboard-status-column,
+.dashboard-action-column,
+.dashboard-date-cell {
+  text-align: left;
 }
 
 .dashboard-status-chip {
@@ -2691,7 +2732,9 @@ body {
 .dashboard-row-action {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: #3859f5;
@@ -2719,12 +2762,14 @@ body {
 .dashboard-detail-cell {
   display: grid;
   gap: 6px;
+  align-items: start;
 }
 
 .dashboard-detail-label {
   color: #667085;
   font-size: 10px;
   font-weight: 500;
+  line-height: 1.4;
 }
 
 .dashboard-detail-value {
@@ -3009,9 +3054,9 @@ body {
 
 .revocation-table-head {
   display: grid;
-  grid-template-columns: 1.2fr 1.9fr 1.3fr 1fr 0.7fr;
-  gap: 20px;
-  padding: 10px 0 12px;
+  grid-template-columns: 23% 26% 24% 18% 9%;
+  gap: 0;
+  padding: 10px 12px 12px;
   border-bottom: 1px solid #e4eaf2;
   color: #667085;
   font-size: 11px;
@@ -3021,27 +3066,62 @@ body {
 .revocation-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.revocation-col-hash {
+  width: 23%;
+}
+
+.revocation-col-cert {
+  width: 26%;
+}
+
+.revocation-col-validity {
+  width: 24%;
+}
+
+.revocation-col-status {
+  width: 18%;
+}
+
+.revocation-col-action {
+  width: 9%;
 }
 
 .revocation-table-row td {
-  padding: 16px 0;
+  padding: 16px 12px;
   border-bottom: 1px solid #e4eaf2;
+  vertical-align: middle;
+}
+
+.revocation-table-cell {
+  text-align: left;
+  vertical-align: middle;
 }
 
 .revocation-table-row-selected {
   background: #eef2ff;
 }
 
+.revocation-hash-cell {
+  padding-left: 10px;
+  vertical-align: middle;
+}
+
 .revocation-hash-value {
+  display: block;
   color: #6941c6;
   font-size: 12px;
   font-weight: 600;
-  padding-left: 10px;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .revocation-cert-cell {
   display: grid;
   gap: 4px;
+  align-content: center;
 }
 
 .revocation-cert-cell strong {
@@ -3053,13 +3133,21 @@ body {
 .revocation-cert-cell span {
   color: #667085;
   font-size: 11px;
+  line-height: 1.5;
 }
 
 .revocation-date-cell {
   color: #101828;
   font-size: 11px;
   font-weight: 500;
-  white-space: nowrap;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.revocation-date-cell,
+.revocation-status-column,
+.revocation-action-column {
+  text-align: left;
 }
 
 .revocation-status-chip {
@@ -3077,8 +3165,12 @@ body {
 }
 
 .revocation-select-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 62px;
   min-height: 34px;
+  padding: 0;
   border: 1px solid #e4eaf2;
   border-radius: 9px;
   background: #ffffff;
@@ -3087,6 +3179,11 @@ body {
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.revocation-status-column,
+.revocation-action-column {
+  vertical-align: middle;
 }
 
 .revocation-select-button-active {
@@ -3399,6 +3496,10 @@ body {
 
   .dashboard-detail-panel {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-detail-cell {
+    gap: 6px;
   }
 
   .dashboard-table-footer {
