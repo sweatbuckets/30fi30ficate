@@ -48,8 +48,8 @@ async function copyStaticAssets() {
     path.join(distDir, "popup", "styles.css")
   );
   await cp(
-    path.join(rootDir, "assets", "icons", "3030icon.svg"),
-    path.join(distDir, "assets", "icons", "3030icon.svg")
+    path.join(rootDir, "assets", "icons", "30ficate_icon.png"),
+    path.join(distDir, "assets", "icons", "30ficate_icon.png")
   );
 }
 
