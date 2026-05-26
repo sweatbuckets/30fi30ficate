@@ -31,6 +31,32 @@
 - apex / `www` 후보 fallback 조회
 - `esbuild` 기반 번들링
 
+## UX 화면 가이드
+
+### 기본 popup 흐름
+
+popup은 현재 탭에서 실제로 관찰한 leaf certificate를 기준으로 온체인 승인 여부를 보여줍니다. 상단에는 검증 결과와 TLS 관찰 여부를, 중간에는 domain / hash 정보를, 하단에는 certificate chain을 보여줍니다.
+
+![Extension Popup Default](../readme_img/extension1.png)
+
+### 검증 정보와 체인 메타데이터
+
+검증 정보 카드에서는 현재 탭의 domain, domainHash, certHash를 확인할 수 있고, certificate chain 카드에서는 leaf / intermediate / root를 구분해서 보여줍니다.
+
+![Extension Popup Metadata](../readme_img/extension2.png)
+
+### 체인 기반 증거 확인
+
+leaf certificate의 발급 날짜와 만료 날짜, 그리고 각 subject DN 메타데이터를 함께 확인할 수 있어, 어떤 실제 인증서를 기준으로 온체인 검증했는지 빠르게 파악할 수 있습니다.
+
+![Extension Popup Chain](../readme_img/extension3.png)
+
+### 폐기 이후 상태 반영
+
+인증서가 admin-web에서 폐기되면 popup도 이후 조회 시 revoked 계열 상태와 경고 UI로 반영됩니다.
+
+![Extension Popup After Revoked](../readme_img/extension_after_revoked.png)
+
 ## 검증 흐름
 
 ```text

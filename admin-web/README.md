@@ -52,6 +52,46 @@
 - 승인된 인증서 목록에서 폐기 대상 선택
 - owner 지갑과 일치할 때만 `revokeCertificate()` 활성화
 
+## UX 화면 가이드
+
+### 홈
+
+관리 콘솔의 목적과 현재 범위를 먼저 보여주고, 좌측 메뉴와 지갑 모듈을 통해 운영 흐름으로 진입합니다.
+
+![Admin Web Home](../readme_img/web_home.png)
+
+### 도메인 등록
+
+owner가 등록할 도메인과 owner address를 입력하고, 온체인 등록 가능 여부를 확인한 뒤 `registerDomain()`을 실행합니다.
+
+![Domain Registration](../readme_img/web_domain_register.png)
+
+### 인증서 승인
+
+승인 화면은 `검색 전 → 검색 결과 검토 → 선택 후 승인` 흐름으로 이어집니다. 검색 결과는 SSLMate 기반으로 불러오고, 선택된 인증서 메타데이터를 그대로 승인 트랜잭션에 연결합니다.
+
+![Approve Search Modal](../readme_img/web_approve_search.png)
+![Approve Selected Certificate](../readme_img/web_approve_select.png)
+![Approve Review State](../readme_img/web_approve_select2.png)
+
+### 승인 인증서 대시보드
+
+등록된 도메인 기준으로 승인 인증서 목록과 온체인 상태를 한 곳에서 조회합니다. 상단 카드에서는 등록 도메인 수, 승인 인증서 수, 폐기 수, 만료 임박 건수를 요약합니다.
+
+![Approved Dashboard](../readme_img/web_dashboard.png)
+![Approved Dashboard Detail](../readme_img/web_dashboard2.png)
+
+인증 취소 이후에는 폐기 상태가 대시보드에 다시 반영됩니다.
+
+![Dashboard After Revocation](../readme_img/web_dashboard_after_revoked.png)
+
+### 인증 취소
+
+인증 취소 화면에서는 승인된 인증서 목록에서 대상을 선택하고, 메모를 남긴 뒤 `revokeCertificate()`를 실행합니다.
+
+![Revocation Select](../readme_img/web_revoke1.png)
+![Revocation Confirm](../readme_img/web_revoke2.png)
+
 ## 인증서 검색 흐름
 
 현재 인증서 검색은 `SSLMate Certificate Search API`를 사용합니다.
