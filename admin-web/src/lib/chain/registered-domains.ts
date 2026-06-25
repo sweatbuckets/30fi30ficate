@@ -2,7 +2,7 @@ import { parseAbiItem, type Address, type PublicClient } from "viem";
 import { normalizeDomain } from "../domain/hash";
 import { registryAddress, registryDeployedAtBlock } from "./contract";
 
-const LOG_BLOCK_RANGE = 10_000n;
+const LOG_BLOCK_RANGE = 10n;
 
 const domainRegisteredEvent = parseAbiItem(
   "event DomainRegistered(bytes32 indexed domainHash, string domain, address indexed ownerAddress, address indexed actor, uint256 registeredAt)"

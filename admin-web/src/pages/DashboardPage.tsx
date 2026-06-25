@@ -6,12 +6,10 @@ import { DomainRegistrationForm } from "../features/domains/DomainRegistrationFo
 import { CertificateApprovalForm } from "../features/certificates/CertificateApprovalForm";
 import { CertificateDashboard } from "../features/certificates/CertificateDashboard";
 import { RevocationPanel } from "../features/registry/RevocationPanel";
-import thirtyficateLogo from "../../../extension/assets/icons/30ficate_icon.png";
+import thirtyficateLogo from "../public/30ficate_icon.png";
 
-const figmaSidebarLogo =
-  "https://www.figma.com/api/mcp/asset/91dc30f2-9cd6-4e01-9cff-f92d185d25e4";
-const figmaHeroLogo =
-  "https://www.figma.com/api/mcp/asset/049924c5-c1b2-41cb-a3b7-b80e81ea0ecc";
+const figmaSidebarLogo = thirtyficateLogo;
+const figmaHeroLogo = thirtyficateLogo;
 
 type AdminSection = "home" | "domain-registration" | "certificate-approval" | "certificate-dashboard" | "revocation";
 
